@@ -116,7 +116,11 @@ export class Chart{
     });
     this._ro.observe(this.box);
     /* rps 特色：双指上下捏合改图表高度（180–1800），横向捏合仍交给 charts 缩放时间轴 */
-    this._bindPinchHeight();
+    // 🔴 2026-11-24：双指手势交给 light charts 缩放 K 线。
+    //    原 _bindPinchHeight 监听双指 Y 间距改图表高度，与 pinch 缩放抢手势——
+    //    用户捏合时「整个 K 线框放大」实际是它在改高度，不是页面缩放。
+    //    函数保留（改三指或长按可再启用），此处不再绑定。
+    // this._bindPinchHeight();
   }
   /* rps 的 _e()：把 range 钳进 [0, n-1+rightOffset]，跨度至少 MIN_SPAN */
   _clamp(r){

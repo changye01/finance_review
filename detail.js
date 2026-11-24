@@ -6,12 +6,18 @@ import {orderedList} from './list.js';
 
 const NOTE_DAILY='不复权日线 · 上K线／下成交量（百万股）· 成交额为湖内精确值（amount 元）';
 const NOTE_MONTH='前复权月线 · 上K线／下成交额（亿元）· 开＝月首日／收＝月末日';
-const ZOOM_HINT='　·　左右拖动平移、滚轮/双指捏合缩放（范围越小K线越大），双指上下拖动调图表高度（180–1800px，自动记住）；rps-review 同款交互 · 点均线开关切换 MA5/10/20/60/120/250 · ←/→ 键翻上/下一个标的';
+const ZOOM_HINT='　·　左右拖动平移、滚轮/双指捏合缩放（范围越小K线越大），双指捏合缩放 K 线；rps-review 同款交互 · 点均线开关切换 MA5/10/20/60/120/250 · ←/→ 键翻上/下一个标的';
 
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const parseCtx=q=>({view:q.get('v')||'pool',layer:q.get('l')||'__all',
                     probeFilter:q.get('f')||'all',sortKey:q.get('sk')||null,
                     sortDir:q.get('sd')==='-1'?-1:1,query:q.get('q')||''});
+
+/* 🔴 iOS 整页禁缩放（2026-11-24）：touch-action 与容器级 gesture 都拦不住
+   Safari 的双指缩放，必须在 document 上无条件阻止。K 线缩放由 light charts
+   的 handleScale.pinch 处理，不依赖浏览器手势。 */
+['gesturestart','gesturechange','gestureend'].forEach(t=>
+  document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
 
 const qs=new URLSearchParams(location.search);
 let sid=qs.get('sid')||'';
