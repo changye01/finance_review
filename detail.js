@@ -26,8 +26,10 @@ function renderTimeline(x){
   const box=document.getElementById('dTimeline');
   if(!box)return;
   if(!x||!x.date){box.innerHTML='';return;} // 主池 A/B/C 无探针时间轴（历史分层无快照，不编造）
-  if(!TL){box.innerHTML='<div class="tl-box"><div class="tl-sub">状态时间轴载入中…</div></div>';return;}
-  const rows=TL[sid]||[];
+  // 时间轴已并进分片（obj.tl），不再单独下载 signal_timeline.json（462 KB）
+  const src=(detailObj&&detailObj.tl)||(TL&&TL[sid])||null;
+  if(!src){box.innerHTML='<div class="tl-box"><div class="tl-sub">状态时间轴载入中…</div></div>';return;}
+  const rows=src;
   if(!rows.length){box.innerHTML='';return;}
   let firstA=-1;
   rows.forEach((r,i)=>{if(firstA<0&&String(r.state||'').indexOf('A')===0)firstA=i;});
@@ -50,6 +52,7 @@ function renderTimeline(x){
   h+='</div></div>';
   box.innerHTML=h;
 }
+/* 已弃用：时间轴改从分片 obj.tl 读（2026-11-24）。仅作兜底，当前无调用点。 */
 function loadTimeline(){
   if(TL){renderTimeline(curX);return;}
   if(!tlLoading)tlLoading=fetchJSON('./signal_timeline.json',d=>!!(d&&typeof d==='object'))
@@ -93,7 +96,6 @@ function refresh(){
   if(!x){document.getElementById('dName').textContent='未找到标的 '+sid;return;}
   curX=x;
   renderHead(x);renderTimeline(x);loadData();
-  if(x.date)loadTimeline(); // 仅探针标的需要时间轴
   window.scrollTo(0,0);
 }
 function bindNav(){
@@ -145,12 +147,11 @@ function renderHead(x){
 async function loadData(){
   const seq=++loadSeq,box=document.getElementById('chartbox');
   try{
-    let h=0;for(let i=0;i<sid.length;i++)h=(h*31+sid.charCodeAt(i))>>>0;
-    const shard=h%M.shards;
-    let all=memShards[shard];
+    // 一票一文件（2026-11-24）：详情页只取自己那只，不再下载整片
+    let all=memShards[sid];
     if(!all){
-      all=await fetchShard('./series/shard_'+shard+'.json',M.generated_at,d=>!!(d&&d[sid]));
-      memShards[shard]=all;
+      all=await fetchShard('./series/'+sid+'.json',M.generated_at,d=>!!(d&&d[sid]));
+      memShards[sid]=all;
     }
     if(seq!==loadSeq)return; // 快速连按翻页时丢弃过期请求
     const obj=all[sid];if(!obj)throw new Error('序列缺失 '+sid);
@@ -158,6 +159,7 @@ async function loadData(){
     if(!chart)chart=new Chart(box,document.getElementById('zoomCtl'),document.getElementById('maLegend'));
     chart.setData(obj,mode);
     drawMinute(obj);
+    if(curX&&curX.date)renderTimeline(curX);   // 分片到手后再画时间轴
     document.getElementById('detailNote').textContent=(mode==='daily'?NOTE_DAILY:NOTE_MONTH)+ZOOM_HINT;
   }catch(e){if(seq===loadSeq)box.innerHTML='<div class="loading">图表数据载入失败：'+esc(e.message)+'</div>';}
 }
@@ -177,7 +179,7 @@ fetchJSON('./meta.json',d=>!!(d&&d.stocks&&d.shards)).then(d=>{
   if(!x){document.getElementById('dName').textContent='未找到标的 '+sid;return;}
   curX=x;
   renderHead(x);renderTimeline(x);bindNav();loadData();
-  if(x.date)loadTimeline();
+  // 时间轴已并进分片（obj.tl），此处不再拉 signal_timeline.json（462 KB）
 }).catch(e=>{document.getElementById('dName').textContent='数据载入失败：'+e.message;});
 
 /* ── 当日分时（canvas，2026-11-24 新增）────────────────────────────
@@ -232,6 +234,7 @@ function drawMinute(obj){
   g.textAlign='center';
   ['09:30','10:30','11:30','14:00','15:00'].forEach((m,idx)=>{
     let i=mi.times.findIndex(t=>t.slice(11,16)===m);
+    if(i<0)i=mi.times.findIndex(t=>t.slice(11,16)>m);  // 降采样后无整点，取其后第一个点
     if(i<0&&idx===0)i=0;          // 数据从 09:31 起，首刻度用第一个点
     if(i<0)return;
     g.strokeStyle=line; g.beginPath(); g.moveTo(X(i),padT); g.lineTo(X(i),vTop+subH); g.stroke();
