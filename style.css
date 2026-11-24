@@ -54,6 +54,16 @@ table.lst td.mono{font-family:ui-monospace,Menlo,monospace}
 .switch{display:flex;gap:0;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:12px 0 10px}
 .switch button{flex:1;background:var(--surface2);border:none;color:var(--ink2);padding:7px 0;font-size:12px;cursor:pointer;font-family:inherit}
 .switch button+button{border-left:1px solid var(--line)}.switch button.on{background:var(--blue);color:#fff}
+/* 窄屏：切换按钮与 MA 图例都容易撑破容器（2026-11-24 实测 390px 溢出）
+   ① .switch 独占一行；② .ma-legend 横向滚动不挤压；③ 全局禁止横向溢出 */
+@media(max-width:560px){
+  .panel-head{flex-direction:column;align-items:stretch;gap:8px}
+  .switch{width:100%;margin:0}
+  .switch button{padding:6px 4px;font-size:11px;white-space:nowrap}
+  .ma-legend{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;max-width:100%}
+  .ma-lg{flex:0 0 auto}
+  .dt-wrap{overflow-x:hidden}
+}
 .chartbox{width:100%;background:var(--surface2);border-radius:8px;overflow:hidden;touch-action:pan-y;-webkit-user-select:none;user-select:none}
 .chart-ctl{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
 .chart-ctl .zl{color:var(--ink3);font-size:11px;font-family:ui-monospace,Menlo,monospace}

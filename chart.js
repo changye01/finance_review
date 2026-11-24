@@ -171,6 +171,11 @@ export class Chart{
     box.addEventListener('touchmove',move,{passive:false});
     box.addEventListener('touchend',end,{passive:true});
     box.addEventListener('touchcancel',end,{passive:true});
+    // 🔴 2026-11-24：iOS Safari 的双指缩放走 gesture* 事件，CSS touch-action 拦不住，
+    //    必须在图表容器上显式 preventDefault，否则双指捏合会变成整页缩放（布局错位）。
+    //    Android 由 .chartbox{touch-action:pan-y} 拦住，两者互补。
+    ['gesturestart','gesturechange','gestureend'].forEach(t=>
+      box.addEventListener(t,e=>e.preventDefault(),{passive:false}));
     this._touch={start,move,end};
   }
   /* 历史 K 线 + 成交量 + MA 一次性装载；切日/月在同实例 setData */
@@ -213,7 +218,7 @@ export class Chart{
     });
     /* 默认展示最近 250 根（手机 120；2026-11-24 由 120/70 上调，用户「120 根不够」），rAF 延迟设置 */
     this._total=n;
-    const def=window.innerWidth<=560?120:250,from=Math.max(0,n-def),to=this._full().to;
+    const def=250,from=Math.max(0,n-def),to=this._full().to;
     requestAnimationFrame(()=>this._applyRange({from,to}));
   }
   dispose(){

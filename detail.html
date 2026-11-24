@@ -6,13 +6,13 @@
 <title>标的详情 · 量化看板</title>
 <link rel="stylesheet" href="./style.css">
 <style>
-body{touch-action:manipulation}
+body{touch-action:manipulation;overflow-x:hidden}
 .dt-wrap{max-width:1500px;margin:0 auto;padding:18px 26px 60px}
 .lwc-main,.lwc-sub{touch-action:pan-y}
 .lwc-sep{height:17px;background:var(--bg)}
 .dt-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
 .dt-head .dn{font-size:22px;font-weight:600}.dt-head .code{font-size:13px;margin-left:8px}
-.dt-head .sub2{color:var(--ink3);font-size:12px;margin-top:6px;line-height:1.7}
+.dt-head .sub2{color:var(--ink3);font-size:12px;margin-top:6px;line-height:1.7;word-break:break-word;overflow-wrap:anywhere}
 .dt-back,.dt-nav{background:var(--surface);border:1px solid var(--line);color:var(--ink2);padding:7px 13px;border-radius:8px;font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:none}
 .dt-back:hover,.dt-nav:hover:not(:disabled){border-color:var(--blue);color:var(--ink)}
 .dt-nav:disabled{opacity:.4;cursor:default}
