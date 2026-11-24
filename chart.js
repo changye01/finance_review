@@ -20,7 +20,7 @@ const _VW=(typeof window!=='undefined')?window.innerWidth:1300;
 const IS_NARROW=_VW<=560;
 const MIN_H=180, MAX_H=1800;
 // 2026-11-24 分三档：手机 720 太占屏、iPad 用桌面 520 偏小
-const DEF_H = _VW<=560 ? 600 : (_VW<=1100 ? 680 : 520);
+const DEF_H = _VW<=560 ? 540 : (_VW<=1100 ? 680 : 520);
 const HS_KEY='lwc_chart_height';
 
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
