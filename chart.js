@@ -16,7 +16,9 @@ export const MA_DEF=[{k:'ma5',label:'MA5',color:'#5b8def'},
 
 const UP='#f5222d',DOWN='#52c41a',INK='#aab6cc',GRID='#2b3548',BG='#151d2e';
 const RIGHT_OFF=8, MIN_SPAN=10;              // rps: et=8, 最小可视跨度 10
-const MIN_H=180, MAX_H=1800, DEF_H=520;      // rps 高度范围；默认总高 520
+const IS_NARROW=(typeof window!=='undefined')&&window.innerWidth<=560;
+const MIN_H=180, MAX_H=1800;
+const DEF_H=IS_NARROW?720:520;                 // 手机默认更高（2026-11-24 用户「手机 K 线框有点小」）
 const HS_KEY='lwc_chart_height';
 
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
@@ -37,7 +39,7 @@ export class Chart{
     this.chart=null;this.chartSub=null;this.cs=null;this.hist=null;this.maSeries={};
     this._syncing=false;this._ro=null;this._labelRAF=0;
     let saved=DEF_H;try{saved=num(localStorage.getItem(HS_KEY),DEF_H);}catch(_){}
-    this._height=clamp(saved,MIN_H,MAX_H);
+    this._height=clamp(IS_NARROW?DEF_H:saved,MIN_H,MAX_H);  // 手机忽略旧存储值
     this._mainEl=null;this._subEl=null;
     this._pinch=null;this._onResize=null;this._touch=null;
     this._bindCtl();
@@ -222,7 +224,7 @@ export class Chart{
     });
     /* 默认展示最近 250 根（手机 120；2026-11-24 由 120/70 上调，用户「120 根不够」），rAF 延迟设置 */
     this._total=n;
-    const def=250,from=Math.max(0,n-def),to=this._full().to;
+    const def=IS_NARROW?150:250,from=Math.max(0,n-def),to=this._full().to;  // 手机 150 根更清晰，可双指放大
     requestAnimationFrame(()=>this._applyRange({from,to}));
   }
   dispose(){
