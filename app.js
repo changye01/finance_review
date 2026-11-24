@@ -9,7 +9,7 @@ const COLS={pool:[{k:'layer',t:'层',f:0},{k:'name',t:'标的',f:0},{k:'chg',t:'
 
 let M=null,view='pool',curLayer='__all',probeFilter='all',sortKey=null,sortDir=1;
 
-function ctx(){return {view,curLayer,probeFilter,sortKey,sortDir};}
+function ctx(){return {view,layer:curLayer,probeFilter,sortKey,sortDir};}
 function dataset(){return orderedList(M,ctx());}
 function cell(x,c){const v=x[c.k];if(c.k==='name'){const b=x.layer?`<span class="badge ${['A','B','C'].includes(x.layer)?x.layer:'other'}">${x.layer}</span> `:'';return `${b}${x.name}${x.fresh?'<span class="chip-new">新</span>':''}<br><span style="color:var(--ink3);font-size:10px">${x.code}</span>`;}if(c.k==='band')return `<span class="band-tag ${bandCls(v)}">${v||'—'}</span>`;if(c.k==='layer'||c.k==='state'||c.k==='date')return v||'—';if(typeof v!=='number')return v==null?'—':v;const isPct=['chg','turn','dist_high','drawdown'].includes(c.k);return `<span class="${isPct?cls(v):''}">${fmt(v,1)}${isPct?'%':(['thr','mult'].includes(c.k)?'×':'')}</span>`;}
 function renderList(){
@@ -40,7 +40,7 @@ function boot(){
   document.getElementById('listBody').addEventListener('click',e=>{
     const tr=e.target.closest('tr[data-id]');if(!tr)return;
     const c=ctx();
-    const q=new URLSearchParams({sid:tr.dataset.id,v:c.view,l:c.curLayer,f:c.probeFilter,sk:c.sortKey||'',sd:String(c.sortDir)});
+    const q=new URLSearchParams({sid:tr.dataset.id,v:c.view,l:c.layer,f:c.probeFilter,sk:c.sortKey||'',sd:String(c.sortDir)});
     // 透传 sharecode（WorkBuddy 发布站需要；Cloudflare 上为空）
     const sc=new URLSearchParams(location.search).get('sharecode');
     if(sc)q.set('sharecode',sc);

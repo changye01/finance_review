@@ -38,7 +38,7 @@ table.lst td.mono{font-family:ui-monospace,Menlo,monospace}
 .switch{display:flex;gap:0;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:12px 0 10px}
 .switch button{flex:1;background:var(--surface2);border:none;color:var(--ink2);padding:7px 0;font-size:12px;cursor:pointer;font-family:inherit}
 .switch button+button{border-left:1px solid var(--line)}.switch button.on{background:var(--blue);color:#fff}
-.chartbox{width:100%;background:var(--surface2);border-radius:8px;overflow:hidden}
+.chartbox{width:100%;background:var(--surface2);border-radius:8px;overflow:hidden;touch-action:pan-y;-webkit-user-select:none;user-select:none}
 .chartbox svg{display:block;width:100%;height:auto}
 .chart-ctl{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
 .chart-ctl button{background:var(--surface2);border:1px solid var(--line);color:var(--ink2);border-radius:6px;min-width:28px;height:26px;padding:0 8px;font-size:12px;cursor:pointer;font-family:inherit}

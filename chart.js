@@ -47,11 +47,20 @@ export class Chart{
       this.draw();
     },{passive:false});
   }
-  /* 画布拖拽平移：按下记录起点，移动按像素→K线根数换算窗口起点 */
+  /* 画布拖拽平移：按下记录起点，移动按像素→K线根数换算窗口起点
+     手机优化：touchmove 用 rAF 节流（一帧最多重绘一次 SVG），配合 CSS
+     touch-action:pan-y 让浏览器只管纵向滚动、横向交给本函数，避免每次
+     move 全量重建 DOM 造成的掉帧与页面跟手滚动。 */
   _bindDrag(){
     const box=this.box;
-    let dragging=false,startX=0,startWin=null;
+    let dragging=false,startX=0,startWin=null,raf=0,pendingStart=null;
     const px=e=>e.touches&&e.touches.length?e.touches[0].clientX:e.clientX;
+    const flush=()=>{ // rAF 内真正落一次窗口并绘制
+      raf=0;
+      if(pendingStart==null||!startWin)return;
+      this.win={start:pendingStart,count:startWin.count};
+      this.draw();
+    };
     const down=e=>{
       const total=this.total();if(!total)return;
       // 全量视图无可平移空间：首次拖动时先收窄到右半段，让拖动立刻生效
@@ -60,27 +69,38 @@ export class Chart{
         this.win={start:total-cnt,count:cnt};
         this.draw();
       }
-      dragging=true;startX=px(e);startWin=this.win?{...this.win}:null;
+      dragging=true;startX=px(e);startWin=this.win?{...this.win}:null;pendingStart=null;
       box.style.cursor='grabbing';
     };
     const move=e=>{
       if(!dragging)return;
       const total=this.total(),cnt=startWin?startWin.count:total;
       if(cnt>=total)return; // 全量无可平移空间
+      if(e.cancelable)e.preventDefault();
       const r=box.getBoundingClientRect();if(!r.width)return;
       const shift=Math.round((px(e)-startX)/r.width*cnt);
-      if(!shift)return;
-      if(e.cancelable)e.preventDefault();
-      this.win={start:Math.max(0,Math.min(total-cnt,(startWin?startWin.start:0)-shift)),count:cnt};
-      this.draw();
+      const ns=Math.max(0,Math.min(total-cnt,(startWin?startWin.start:0)-shift));
+      if(this.win&&this.win.start===ns&&pendingStart===ns)return;
+      pendingStart=ns;
+      if(!raf)raf=requestAnimationFrame(flush); // 同帧多次 move 合并为一次绘制
     };
-    const up=()=>{if(!dragging)return;dragging=false;box.style.cursor='grab';};
+    const up=()=>{
+      if(!dragging)return;
+      dragging=false;box.style.cursor='grab';
+      if(raf){cancelAnimationFrame(raf);raf=0;}
+      // 抬手时补齐最后一帧，停在手指离开的位置
+      if(pendingStart!=null&&startWin&&(!this.win||this.win.start!==pendingStart)){
+        this.win={start:pendingStart,count:startWin.count};this.draw();
+      }
+      pendingStart=null;startWin=null;
+    };
     box.addEventListener('mousedown',down);
-    box.addEventListener('touchstart',down,{passive:true});
+    box.addEventListener('touchstart',down,{passive:false});
     window.addEventListener('mousemove',move);
     box.addEventListener('touchmove',move,{passive:false});
     window.addEventListener('mouseup',up);
     box.addEventListener('touchend',up);
+    box.addEventListener('touchcancel',up);
   }
   total(){if(!this.obj)return 0;return (this.mode==='daily'?this.obj.daily.ohlc:this.obj.monthly.ohlc).length;}
   /* 载入新标的：重置窗口。切日线/月线走同法（数据已在内存，无需重取） */
