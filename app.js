@@ -6,6 +6,7 @@ const LAYER_NAME={A:'A · 可用',B:'B · 观察',C:'C · 不做',恢复观察:'
 const LAYER_TIP={A:'四条准入全过：5分 / 回撤<30% / 周转≥2× / 距高<15%',B:'5分但准入未全过，或成立但缺第二日读数；连续两日成立才升A',C:'回撤>30% 一律留C，不因单日反弹或涨停升级',恢复观察:'结束判定被推翻，只核周转能否回2×，不升不降',掉出预筛:'上期在池、本期未过门槛，只留读数不参与分层','4分回榜':'重回预筛但未进5分，不参与分层'};
 const PROBE_TIP='v5-noqx 启动探针 · 45日窗 · 严格T+5 · 固定只显示信号日在最近一个月内的标的。命中＝「从静默转放量」的形态候选，证据弱于五条打分，不表示可买、不是量化主控标的。⚠️「⚪已过参与窗口」仅作复盘。点标的看日线，可切月线。';
 const COLS={pool:[{k:'layer',t:'层',f:0},{k:'name',t:'标的',f:0},{k:'chg',t:'涨跌',f:1},{k:'turn',t:'换手',f:1},{k:'thr',t:'÷阈值',f:1},{k:'dist_high',t:'距高',f:1},{k:'drawdown',t:'回撤',f:1},{k:'amt',t:'额',f:1}],probe:[{k:'dist',t:'距今',f:0},{k:'name',t:'标的',f:0},{k:'date',t:'信号日',f:0},{k:'chg',t:'涨幅',f:1},{k:'mult',t:'放大',f:1},{k:'turn',t:'换手',f:1},{k:'band',t:'窗口',f:0},{k:'state',t:'状态',f:0}]};
+const ZOOM_HINT='　·　在图上左右拖动平移、滚轮缩放（范围越小K线越大），也可用下方 −／＋ 与滑块';
 const NOTE_DAILY='不复权日线 · 上K线／下成交量（百万股）· 成交额为湖内精确值（amount 元）';
 const NOTE_MONTH='前复权月线 · 上K线／下成交额（亿元）· 开＝月首日／收＝月末日';
 
@@ -35,7 +36,7 @@ async function showDetail(id){
     dp.querySelectorAll('.switch button').forEach(z=>z.classList.remove('on'));b.classList.add('on');
     detailMode=b.dataset.m;
     if(detailObj)chart.setData(detailObj,detailMode); // 数据已在内存，切模式不重取
-    document.getElementById('detailNote').textContent=(detailMode==='daily'?NOTE_DAILY:NOTE_MONTH)+'　·　可用 −／＋ 缩放、拖动滑块平移，鼠标滚轮在图上也可缩放';
+    document.getElementById('detailNote').textContent=(detailMode==='daily'?NOTE_DAILY:NOTE_MONTH)+ZOOM_HINT;
   }));
   if(window.innerWidth<=1000)dp.scrollIntoView({behavior:'smooth',block:'start'});
   renderList();await loadSeries(x,'daily');
@@ -53,7 +54,7 @@ async function loadSeries(x,mode){
     if(!obj)throw new Error('序列缺失 '+key);
     detailObj=obj;
     chart.setData(obj,mode);
-    document.getElementById('detailNote').textContent=(mode==='daily'?NOTE_DAILY:NOTE_MONTH)+'　·　可用 −／＋ 缩放、拖动滑块平移，鼠标滚轮在图上也可缩放';
+    document.getElementById('detailNote').textContent=(mode==='daily'?NOTE_DAILY:NOTE_MONTH)+ZOOM_HINT;
   }catch(e){box.innerHTML='<div class="loading">图表数据载入失败：'+e.message+'</div>';}
 }
 function clearDetail(){if(detailId===null)return;detailId=null;detailData=null;detailObj=null;chart=null;const dp=document.getElementById('detailPanel');dp.classList.add('detail-panel-hidden');dp.innerHTML='<div class="detail-empty">点击左侧标的查看日线 / 月线<br>（切换仅改变图表，不代表信号变化）</div>';}

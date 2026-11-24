@@ -7,7 +7,9 @@ export class Chart{
     this.obj=null;      // 当前序列 {daily,monthly}
     this.mode='daily';  // daily | monthly
     this.win=null;      // 缩放窗口 {start,count}，null=全量
+    this.box.style.cursor='grab';
     this._bindCtl();
+    this._bindDrag();
   }
   _bindCtl(){
     const zc=this.ctl;
@@ -26,6 +28,41 @@ export class Chart{
       else{const anchor=cur.start+frac*cur.count;this.win={start:Math.max(0,Math.min(total-cnt,Math.round(anchor-frac*cnt))),count:cnt};}
       this.draw();
     },{passive:false});
+  }
+  /* 画布拖拽平移：按下记录起点，移动按像素→K线根数换算窗口起点 */
+  _bindDrag(){
+    const box=this.box;
+    let dragging=false,startX=0,startWin=null;
+    const px=e=>e.touches&&e.touches.length?e.touches[0].clientX:e.clientX;
+    const down=e=>{
+      const total=this.total();if(!total)return;
+      // 全量视图无可平移空间：首次拖动时先收窄到右半段，让拖动立刻生效
+      if(!this.win&&total>8){
+        const cnt=Math.max(8,Math.round(total*0.5));
+        this.win={start:total-cnt,count:cnt};
+        this.draw();
+      }
+      dragging=true;startX=px(e);startWin=this.win?{...this.win}:null;
+      box.style.cursor='grabbing';
+    };
+    const move=e=>{
+      if(!dragging)return;
+      const total=this.total(),cnt=startWin?startWin.count:total;
+      if(cnt>=total)return; // 全量无可平移空间
+      const r=box.getBoundingClientRect();if(!r.width)return;
+      const shift=Math.round((px(e)-startX)/r.width*cnt);
+      if(!shift)return;
+      if(e.cancelable)e.preventDefault();
+      this.win={start:Math.max(0,Math.min(total-cnt,(startWin?startWin.start:0)-shift)),count:cnt};
+      this.draw();
+    };
+    const up=()=>{if(!dragging)return;dragging=false;box.style.cursor='grab';};
+    box.addEventListener('mousedown',down);
+    box.addEventListener('touchstart',down,{passive:true});
+    window.addEventListener('mousemove',move);
+    box.addEventListener('touchmove',move,{passive:false});
+    window.addEventListener('mouseup',up);
+    box.addEventListener('touchend',up);
   }
   total(){if(!this.obj)return 0;return (this.mode==='daily'?this.obj.daily.ohlc:this.obj.monthly.ohlc).length;}
   /* 载入新标的：重置窗口。切日线/月线走同法（数据已在内存，无需重取） */
