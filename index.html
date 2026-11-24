@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>量化标的看板 · 量能日线／月线</title>
+<style>
+:root{--bg:#0f172a;--surface:#1c2333;--surface2:#151d2e;--line:#2b3548;--ink:#e8edf5;--ink2:#aab6cc;--ink3:#7b8aa5;--up:#f5222d;--down:#52c41a;--blue:#1677ff;--amber:#faad14}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1500px;margin:0 auto;padding:22px 26px 70px}
+header{padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:18px}
+h1{font-size:21px;font-weight:600;letter-spacing:-.3px}
+h1 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:10px;vertical-align:middle}
+.sub{color:var(--ink3);font-size:12px;margin-top:6px}
+.layer-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+.tab{background:var(--surface);border:1px solid var(--line);color:var(--ink2);padding:7px 13px;border-radius:8px;font-size:12.5px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.tab:hover{border-color:#3d4a63;color:var(--ink)}
+.tab.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.tab.probe.on{background:var(--amber);border-color:var(--amber);color:#1a1200}
+.tab .n{background:rgba(255,255,255,.12);padding:1px 6px;border-radius:5px;font-size:11px}
+.section-tip{color:var(--ink3);font-size:11.5px;margin:0 0 13px 2px;line-height:1.7}
+.layout{display:grid;grid-template-columns:minmax(560px,1.3fr) minmax(480px,1fr);gap:16px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.panel-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.panel-head .t{font-size:14px;font-weight:600}.panel-head .m{color:var(--ink3);font-size:11px;font-family:ui-monospace,Menlo,monospace}
+.filters{display:flex;gap:5px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.pf{background:var(--surface2);border:1px solid var(--line);color:var(--ink2);padding:4px 10px;border-radius:6px;font-size:11.5px;cursor:pointer;font-family:inherit}
+.pf.on{background:rgba(250,173,20,.16);border-color:var(--amber);color:#ffc53d}
+.scroll{max-height:calc(100vh - 230px);min-height:320px;overflow:auto}
+table.lst{width:100%;border-collapse:collapse;font-size:12px}
+table.lst thead th{position:sticky;top:0;background:var(--surface2);z-index:2;text-align:left;font-weight:600;color:var(--ink2);font-size:11px;padding:8px 9px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+table.lst td{padding:7px 9px;border-bottom:1px solid rgba(43,53,72,.5);white-space:nowrap}
+table.lst tbody tr{cursor:pointer}table.lst tbody tr:hover{background:rgba(22,119,255,.09)}table.lst tbody tr.sel{background:rgba(250,173,20,.13)}
+table.lst td.mono{font-family:ui-monospace,Menlo,monospace}
+.band-tag{display:inline-block;padding:2px 6px;border-radius:5px;font-size:10px;white-space:nowrap}
+.band-green{background:rgba(82,196,26,.14);color:#7cd94a}.band-amber{background:rgba(250,173,20,.14);color:#ffc53d}.band-gray{background:rgba(123,138,165,.14);color:var(--ink3)}
+.badge{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10.5px;font-weight:600}
+.badge.A{background:rgba(245,34,45,.16);color:#ff6b6b}.badge.B{background:rgba(250,173,20,.15);color:#ffc53d}.badge.C{background:rgba(22,119,255,.14);color:#69b1ff}.badge.other{background:rgba(123,138,165,.16);color:var(--ink2)}
+.chip-new{background:var(--up);color:#fff;font-size:9.5px;padding:1px 4px;border-radius:4px;margin-left:4px;vertical-align:middle}
+.detail{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px 20px}
+.detail-empty{color:var(--ink3);text-align:center;padding:70px 10px;font-size:12.5px;line-height:1.9}
+.detail-head .dn{font-size:18px;font-weight:600}.code{color:var(--ink3);font-size:11.5px;font-family:ui-monospace,Menlo,monospace;margin-left:7px}
+.detail-meta{color:var(--ink3);font-size:11px;margin-top:5px;line-height:1.7}
+.switch{display:flex;gap:0;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:12px 0 10px}
+.switch button{flex:1;background:var(--surface2);border:none;color:var(--ink2);padding:7px 0;font-size:12px;cursor:pointer;font-family:inherit}
+.switch button+button{border-left:1px solid var(--line)}.switch button.on{background:var(--blue);color:#fff}
+.chartbox{width:100%;background:var(--surface2);border-radius:8px;overflow:hidden}
+.chartbox svg{display:block;width:100%;height:auto}
+.chart-ctl{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.chart-ctl button{background:var(--surface2);border:1px solid var(--line);color:var(--ink2);border-radius:6px;min-width:28px;height:26px;padding:0 8px;font-size:12px;cursor:pointer;font-family:inherit}
+.chart-ctl button:hover{border-color:var(--blue);color:var(--ink)}
+.chart-ctl input[type=range]{flex:1;min-width:80px;accent-color:var(--blue)}
+.chart-ctl .rng{color:var(--ink3);font-size:11px;font-family:ui-monospace,Menlo,monospace;white-space:nowrap}
+.chart-ctl.hide{display:none}
+.detail-note{color:var(--ink3);font-size:10.5px;margin-top:8px;line-height:1.7}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:12px 0 2px}
+.kpi{background:var(--surface2);border-radius:6px;padding:7px 8px}
+.kpi .lab{color:var(--ink3);font-size:9.5px;margin-bottom:2px;white-space:nowrap}
+.kpi .val{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.pos{color:var(--up)!important}.neg{color:var(--down)!important}
+.detail-desc{margin-top:12px;padding:11px 13px;background:var(--surface2);border-radius:7px;color:var(--ink2);font-size:11.5px;line-height:1.75}
+.detail-desc b{color:var(--amber)}
+.back-btn{display:none}
+.loading{color:var(--ink3);text-align:center;padding:40px;font-size:12px}
+.footer-note{margin-top:26px;padding:15px 18px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;color:var(--ink3);font-size:11.5px;line-height:1.85}
+.footer-note b{color:var(--ink2)}
+@media(max-width:1000px){.layout{grid-template-columns:1fr}.scroll{max-height:46vh;min-height:200px}.detail{order:-1}.detail-empty{padding:20px 10px}.back-btn{display:inline-block;background:var(--surface2);border:1px solid var(--line);color:var(--ink2);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;margin-bottom:8px}.detail-panel-hidden .chartbox,.detail-panel-hidden .switch,.detail-panel-hidden .kpis,.detail-panel-hidden .detail-desc,.detail-panel-hidden .detail-note{display:none}}
+@media(max-width:560px){.wrap{padding:16px 12px 50px}h1{font-size:17px}.tab{padding:6px 10px;font-size:11.5px}.kpis{grid-template-columns:repeat(3,1fr)}table.lst{font-size:11px}table.lst td,table.lst thead th{padding:6px 7px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1><span class="dot"></span>量化标的看板 · 量能日线／月线</h1><div class="sub" id="subline">载入中…</div></header>
+<div class="layer-tabs" id="tabs"></div><div class="section-tip" id="tip"></div>
+<div class="layout">
+  <div class="panel" id="listPanel">
+    <div class="panel-head"><span class="t" id="listTitle">标的</span><span class="m" id="listMeta"></span></div>
+    <div class="filters" id="filters"></div>
+    <div class="scroll"><table class="lst"><thead><tr id="listHead"></tr></thead><tbody id="listBody"></tbody></table></div>
+  </div>
+  <div class="detail detail-panel-hidden" id="detailPanel">
+    <div class="detail-empty">点击左侧标的查看日线 / 月线<br>（切换仅改变图表，不代表信号变化）</div>
+  </div>
+</div>
+<div class="footer-note" id="footer"></div>
+</div>
+<script>
+/* 轻量自绘 K 线：无任何外部库，所有数据来自小文件按需 fetch */
+const UP='#f5222d',DOWN='#52c41a',INK='#aab6cc',GRID='#2b3548';
+const LAYER_NAME={A:'A · 可用',B:'B · 观察',C:'C · 不做',恢复观察:'恢复观察',掉出预筛:'掉出预筛','4分回榜':'4分回榜'};
+const LAYER_TIP={A:'四条准入全过：5分 / 回撤<30% / 周转≥2× / 距高<15%',B:'5分但准入未全过，或成立但缺第二日读数；连续两日成立才升A',C:'回撤>30% 一律留C，不因单日反弹或涨停升级',恢复观察:'结束判定被推翻，只核周转能否回2×，不升不降',掉出预筛:'上期在池、本期未过门槛，只留读数不参与分层','4分回榜':'重回预筛但未进5分，不参与分层'};
+const PROBE_TIP='v5-noqx 启动探针 · 45日窗 · 严格T+5 · 固定只显示信号日在最近一个月内的标的。命中＝「从静默转放量」的形态候选，证据弱于五条打分，不表示可买、不是量化主控标的。⚠️「⚪已过参与窗口」仅作复盘。点标的看日线，可切月线。';
+const COLS={pool:[{k:'layer',t:'层',f:0},{k:'name',t:'标的',f:0},{k:'chg',t:'涨跌',f:1},{k:'turn',t:'换手',f:1},{k:'thr',t:'÷阈值',f:1},{k:'dist_high',t:'距高',f:1},{k:'drawdown',t:'回撤',f:1},{k:'amt',t:'额',f:1}],probe:[{k:'dist',t:'距今',f:0},{k:'name',t:'标的',f:0},{k:'date',t:'信号日',f:0},{k:'chg',t:'涨幅',f:1},{k:'mult',t:'放大',f:1},{k:'turn',t:'换手',f:1},{k:'band',t:'窗口',f:0},{k:'state',t:'状态',f:0}]};
+const fmt=(x,d=1)=>x==null?'—':Number(x).toFixed(d);
+const cls=x=>x==null?'':(x>0?'pos':x<0?'neg':'');
+const sgn=(x,d=1)=>x==null?'—':(x>0?'+':'')+Number(x).toFixed(d);
+const bandCls=b=>b&&b.indexOf('🟢')>=0?'band-green':(b&&b.indexOf('🟡')>=0?'band-amber':'band-gray');
+let M=null,view='pool',curLayer='__all',probeFilter='all',sortKey=null,sortDir=1,detailId=null,detailData=null,detailMode='daily';
+/* 发布站用 sharecode 鉴权：相对路径 fetch 不带它会被 403，必须透传 */
+const SHARE=(new URLSearchParams(location.search)).get('sharecode')||'';
+/* 静态托管偶发半包/截断；force-cache 会把坏响应永久缓存 → no-store + 每次带 nonce 重试 + 内容校验 */
+const resUrl=(p,nonce)=>{const q=[];if(SHARE)q.push('sharecode='+encodeURIComponent(SHARE));if(nonce!=null)q.push('_r='+nonce);return q.length?p+(p.indexOf('?')>=0?'&':'?')+q.join('&'):p;};
+async function fetchJSON(path,validate,tries){
+  tries=tries||6;let last;
+  for(let i=0;i<tries;i++){
+    try{
+      const r=await fetch(resUrl(path,Date.now()+'_'+i),{cache:'no-store'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const d=await r.json();
+      if(validate&&!validate(d))throw new Error('数据不完整');
+      return d;
+    }catch(e){last=e;if(i<tries-1)await new Promise(ok=>setTimeout(ok,180*(i+1)));}
+  }
+  throw last;
+}
+
+function dataset(){if(view==='probe')return (M.probe||[]).slice();let a=(M.stocks||[]).slice();if(curLayer!=='__all')a=a.filter(x=>x.layer===curLayer);return a;}
+function filtered(){let a=dataset();if(view==='probe'){if(probeFilter==='fresh')a=a.filter(x=>x.fresh);else if(probeFilter==='green')a=a.filter(x=>x.band&&x.band.indexOf('🟢')>=0);else if(probeFilter==='back')a=a.filter(x=>x.band&&x.band.indexOf('⚪')>=0);}if(sortKey)a.sort((x,y)=>{let vx=x[sortKey],vy=y[sortKey];if(vx==null)vx='';if(vy==null)vy='';if(typeof vx==='string'||typeof vy==='string')return String(vx).localeCompare(String(vy),'zh')*sortDir;return (vx-vy)*sortDir;});return a;}
+function cell(x,c){const v=x[c.k];if(c.k==='name'){const b=x.layer?`<span class="badge ${['A','B','C'].includes(x.layer)?x.layer:'other'}">${x.layer}</span> `:'';return `${b}${x.name}${x.fresh?'<span class="chip-new">新</span>':''}<br><span style="color:var(--ink3);font-size:10px">${x.code}</span>`;}if(c.k==='band')return `<span class="band-tag ${bandCls(v)}">${v||'—'}</span>`;if(c.k==='layer'||c.k==='state'||c.k==='date')return v||'—';if(typeof v!=='number')return v==null?'—':v;const isPct=['chg','turn','dist_high','drawdown'].includes(c.k);return `<span class="${isPct?cls(v):''}">${fmt(v,1)}${isPct?'%':(['thr','mult'].includes(c.k)?'×':'')}</span>`;}
+function renderList(){
+  document.getElementById('listHead').innerHTML=COLS[view].map(c=>`<th data-k="${c.k}">${c.t}${sortKey===c.k?(sortDir>0?' ↑':' ↓'):''}</th>`).join('');
+  document.getElementById('listBody').innerHTML=filtered().map(x=>{const id=x.code+(x.date?'@'+x.date:'');return `<tr data-id="${id}" class="${id===detailId?'sel':''}">${COLS[view].map(c=>`<td class="${c.f?'mono':''}">${cell(x,c)}</td>`).join('')}</tr>`;}).join('');
+  document.querySelectorAll('#listHead th[data-k]').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.k;if(sortKey===k)sortDir=-sortDir;else{sortKey=k;sortDir=1;}renderList();}));
+}
+/* ── SVG K线绘制（支持缩放窗口 chartWin={start,count}，null=全量）── */
+let chartWin=null; // 当前缩放窗口，切换标的/日线月线时重置为 null
+function drawChart(svgEl,obj,mode){
+  const daily=mode==='daily';
+  const allDates=daily?obj.daily.dates:obj.monthly.ms.map(m=>m+'-01');
+  const allOhlc=daily?obj.daily.ohlc:obj.monthly.ohlc;
+  const allBars=daily?obj.daily.vol:obj.monthly.amt;
+  const total=allOhlc.length;if(!total)return;
+  // 归一化窗口（含边界保护）
+  let start=0,count=total;
+  if(chartWin){count=Math.max(8,Math.min(total,chartWin.count|0));start=Math.max(0,Math.min(total-count,chartWin.start|0));chartWin={start,count};}
+  const dates=allDates.slice(start,start+count),ohlc=allOhlc.slice(start,start+count),bars=allBars.slice(start,start+count);
+  const W=800,H=340,PL=8,PR=58,PT=14,KH=218,GAP=10,VH=64;
+  const IW=W-PL-PR,n=ohlc.length;
+  const hi=Math.max(...ohlc.map(o=>o[3])),lo=Math.min(...ohlc.map(o=>o[2]));
+  const pad=(hi-lo)*0.06||1,yMax=hi+pad,yMin=lo-pad;
+  const sy=v=>PT+KH-(v-yMin)/(yMax-yMin)*KH;
+  const cw=IW/n,bw=Math.max(1,Math.min(cw*0.62,28)),cx=i=>PL+cw*(i+0.5);
+  let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  for(let g=0;g<4;g++){const y=PT+KH*g/3;s+=`<line x1="${PL}" y1="${y}" x2="${PL+IW}" y2="${y}" stroke="${GRID}" stroke-width="0.6"/><text x="${PL+IW+4}" y="${y+3}" fill="${INK}" font-size="10">${fmt(yMax-(yMax-yMin)*g/3,2)}</text>`;}
+  ohlc.forEach((o,i)=>{const up=o[1]>=o[0],col=up?UP:DOWN,x=cx(i);s+=`<line x1="${x}" y1="${sy(o[3])}" x2="${x}" y2="${sy(o[2])}" stroke="${col}" stroke-width="1"/><rect x="${(x-bw/2).toFixed(1)}" y="${Math.min(sy(o[0]),sy(o[1])).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,Math.abs(sy(o[0])-sy(o[1]))).toFixed(1)}" fill="${up?col:'none'}" stroke="${col}" stroke-width="1"/>`;});
+  const vTop=PT+KH+GAP,vMax=Math.max(...bars)||1;
+  bars.forEach((b,i)=>{const up=ohlc[i][1]>=ohlc[i][0],h=b/vMax*VH;s+=`<rect x="${(cx(i)-bw/2).toFixed(1)}" y="${(vTop+VH-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${up?'rgba(245,34,45,.55)':'rgba(82,196,26,.55)'}"/>`;});
+  s+=`<line x1="${PL}" y1="${vTop+VH}" x2="${PL+IW}" y2="${vTop+VH}" stroke="${GRID}" stroke-width="0.6"/>`;
+  const nl=Math.min(6,n),lbl=[];for(let k=0;k<nl;k++)lbl.push(Math.round(k*(n-1)/(nl-1||1)));
+  lbl.forEach(i=>{s+=`<text x="${cx(i)}" y="${H-4}" fill="${INK}" font-size="10" text-anchor="middle">${dates[i]}</text>`;});
+  s+='</svg>';svgEl.innerHTML=s;
+  syncZoomCtl(total,start,count);
+}
+/* 缩放控制：向右锚定（zoom 后尽量保留右端最新K线），滑块平移 */
+let detailObj=null;
+function chartTotal(){if(!detailObj)return 0;return (detailMode==='daily'?detailObj.daily.ohlc:detailObj.monthly.ohlc).length;}
+function syncZoomCtl(total,start,count){
+  const box=document.getElementById('zoomCtl');if(!box)return;
+  box.classList.remove('hide');
+  const sl=box.querySelector('input[data-z="pan"]'),lab=box.querySelector('.zl');
+  sl.max=Math.max(0,total-count);sl.value=start;sl.disabled=total<=count;
+  lab.textContent=`显示 ${count}/${total} 根${count<total?'（'+fmt((start+1)/total*100,0)+'–'+fmt((start+count)/total*100,0)+'%）':''}`;
+}
+function chartZoom(dir){
+  const total=chartTotal();if(!total)return;
+  const cur=chartWin||{start:0,count:total};
+  if(dir==='reset'){chartWin=null;}
+  else{
+    let cnt=dir>0?Math.max(8,Math.round(cur.count/1.6)):Math.min(total,Math.round(cur.count*1.6));
+    if(cnt>=total){chartWin=null;}
+    else{const right=cur.start+cur.count;chartWin={start:Math.max(0,Math.min(total-cnt,right-cnt)),count:cnt};}
+  }
+  if(detailObj)drawChart(document.getElementById('chartbox'),detailObj,detailMode);
+}
+async function showDetail(id){
+  const x=dataset().find(p=>p.code+(p.date?'@'+p.date:'')===id);if(!x)return;
+  detailId=id;detailData=x;detailMode='daily';
+  const isP=view==='probe',ind=x.ind||{};
+  const meta=isP?`信号日 ${x.date||'—'} · 距今 ${x.dist==null?'—':x.dist} 日 · 涨幅 <span class="${cls(x.chg)}">${sgn(x.chg)}%</span> · 放大 ${fmt(x.mult,1)}× · 换手 ${fmt(x.turn,1)}%<br>${x.band||''} · ${x.state||''}`:`${x.concept||'—'}<br>涨跌 <span class="${cls(x.chg)}">${sgn(x.chg)}%</span> · 换手 ${fmt(x.turn,1)}% · ÷阈值 ${fmt(x.thr,1)}× · 距高 ${sgn(x.dist_high)}% · 回撤 ${sgn(x.drawdown)}% · 额 ${fmt(x.amt)}亿`;
+  let kpis='',desc='';
+  if(!isP){kpis=`<div class="kpis">${[['现价',fmt(ind.close,2),''],['距250日高',sgn(ind.dist),cls(-ind.dist)],['压缩度',fmt(ind.comp,2),''],['启动度',fmt(ind.start,2),''],['吸筹比',fmt(ind.absorb,2),''],['综合分',fmt(ind.score,1),'']].map(a=>`<div class="kpi"><div class="lab">${a[0]}</div><div class="val ${a[2]}">${a[1]}</div></div>`).join('')}</div>`;desc=`<div class="detail-desc"><b>对应操作</b> ${x.action||'—'}<br><b>预期形态</b> ${x.shape||'—'}<br><b>主升段</b> ${x.seg||'—'} · 遍数 ${fmt(x.rounds,1)} · 窗口涨幅 ${sgn(x.win_gain)}%</div>`;}
+  const dp=document.getElementById('detailPanel');dp.classList.remove('detail-panel-hidden');
+  chartWin=null;detailObj=null;
+  dp.innerHTML=`<button class="back-btn" id="backBtn">← 返回列表</button><div class="detail-head"><div><div class="dn">${x.name}<span class="code">${x.code}</span>${isP&&x.fresh?'<span class="chip-new">新</span>':''}</div><div class="detail-meta">${meta}</div></div></div><div class="switch"><button class="on" data-m="daily">日线 · 不复权</button><button data-m="monthly">月线 · 前复权</button></div>${kpis}<div class="chartbox" id="chartbox"><div class="loading">载入图中…</div></div><div class="chart-ctl hide" id="zoomCtl"><button data-z="out" title="缩小范围（显示更多）">−</button><button data-z="in" title="放大范围（显示更少）">＋</button><input type="range" data-z="pan" min="0" max="0" value="0" title="拖动平移"><button data-z="reset" title="显示全部">重置</button><span class="zl"></span></div><div class="detail-note" id="detailNote"></div>${desc}`;
+  const bb=document.getElementById('backBtn');if(bb)bb.addEventListener('click',()=>{clearDetail();renderList();window.scrollTo({top:0,behavior:'smooth'});});
+  dp.querySelectorAll('.switch button').forEach(b=>b.addEventListener('click',()=>{dp.querySelectorAll('.switch button').forEach(z=>z.classList.remove('on'));b.classList.add('on');detailMode=b.dataset.m;chartWin=null;loadSeries(x,detailMode);}));
+  const zc=dp.querySelector('#zoomCtl');
+  zc.querySelector('[data-z="out"]').addEventListener('click',()=>chartZoom(-1));
+  zc.querySelector('[data-z="in"]').addEventListener('click',()=>chartZoom(1));
+  zc.querySelector('[data-z="reset"]').addEventListener('click',()=>chartZoom('reset'));
+  zc.querySelector('[data-z="pan"]').addEventListener('input',e=>{const total=chartTotal();if(!total||!chartWin)return;const cnt=chartWin.count;chartWin={start:Math.max(0,Math.min(total-cnt,+e.target.value)),count:cnt};if(detailObj)drawChart(document.getElementById('chartbox'),detailObj,detailMode);});
+  // 鼠标滚轮以光标位置为中心缩放
+  const cbx=dp.querySelector('#chartbox');
+  cbx.addEventListener('wheel',e=>{
+    const total=chartTotal();if(!total)return;
+    e.preventDefault();
+    const r=cbx.getBoundingClientRect(),frac=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+    const cur=chartWin||{start:0,count:total};
+    let cnt=e.deltaY<0?Math.max(8,Math.round(cur.count/1.35)):Math.min(total,Math.round(cur.count*1.35));
+    if(cnt>=total)chartWin=null;
+    else{const anchor=cur.start+frac*cur.count;chartWin={start:Math.max(0,Math.min(total-cnt,Math.round(anchor-frac*cnt))),count:cnt};}
+    if(detailObj)drawChart(cbx,detailObj,detailMode);
+  },{passive:false});
+  if(window.innerWidth<=1000)dp.scrollIntoView({behavior:'smooth',block:'start'});
+  renderList();await loadSeries(x,'daily');
+}
+async function loadSeries(x,mode){
+  const box=document.getElementById('chartbox');if(!box)return;
+  box.innerHTML='<div class="loading">载入图中…</div>';
+  const key=(x.sid||x.code);
+  try{
+    // 按 sid 哈希取分片（分片文件数少，发布启动快；单片 <60KB 传输稳）
+    let h=0;for(let i=0;i<key.length;i++)h=(h*31+key.charCodeAt(i))>>>0;
+    const shard=h%M.shards;
+    const all=await fetchJSON('./series/shard_'+shard+'.json',d=>!!(d&&d[key]));
+    const obj=all[key];
+    if(!obj)throw new Error('序列缺失 '+key);
+    detailObj=obj;
+    drawChart(box,obj,mode);
+    document.getElementById('detailNote').textContent=(mode==='daily'?'不复权日线 · 上K线／下成交量（百万股）· 成交额为湖内精确值（amount 元）':'前复权月线 · 上K线／下成交额（亿元）· 开＝月首日／收＝月末日')+'　·　可用 −／＋ 缩放、拖动滑块平移，鼠标滚轮在图上也可缩放';
+  }catch(e){box.innerHTML='<div class="loading">图表数据载入失败：'+e.message+'</div>';}
+}
+function clearDetail(){if(detailId===null)return;detailId=null;detailData=null;chartWin=null;detailObj=null;const dp=document.getElementById('detailPanel');dp.classList.add('detail-panel-hidden');dp.innerHTML='<div class="detail-empty">点击左侧标的查看日线 / 月线<br>（切换仅改变图表，不代表信号变化）</div>';}
+function setupView(){
+  const isP=view==='probe',pm=M.probe_meta||{};
+  const fs=document.getElementById('filters');
+  const f=isP?[['all','全部'],['fresh','🆕新命中'],['green','🟢当期窗口'],['back','⚪仅回溯']]:[['all','全部']];
+  fs.innerHTML=f.map(x=>`<button class="pf ${x[0]==='all'?'on':''}" data-f="${x[0]}">${x[1]}</button>`).join('');
+  fs.querySelectorAll('.pf').forEach(b=>b.addEventListener('click',()=>{fs.querySelectorAll('.pf').forEach(z=>z.classList.remove('on'));b.classList.add('on');probeFilter=b.dataset.f;renderList();}));
+  document.getElementById('listTitle').textContent=isP?'t_45 探针 · T 表':(curLayer==='__all'?'A/B/C 全池':LAYER_NAME[curLayer]||curLayer);
+  document.getElementById('listMeta').textContent=isP?`${pm.probe_version||'—'} · ${pm.window||''} · ${pm.total||0}/${pm.total_all||0} 只`:`${dataset().length} 只 · 复盘日 ${M.date}`;
+  document.getElementById('tip').textContent=isP?PROBE_TIP:(curLayer==='__all'?'A/B/C 全池（按分层排序）':(LAYER_TIP[curLayer]||''));
+}
+function boot(){
+  document.getElementById('subline').textContent='复盘日 '+M.date+' · CNEquity 本地湖（'+M.lake_coverage+'）· 生成 '+M.generated_at;
+  const pm=M.probe_meta||{};
+  document.getElementById('footer').innerHTML=`<b>口径</b>　日线：${M.caliber.daily}<br>　　　　月线：${M.caliber.monthly}<br>　　　　指标：${M.caliber.indicators}<br><b>探针</b>　${pm.file||'缺'}，固定筛选 ${pm.window||'—'}（全窗 ${pm.total_all||0} → ${pm.total||0} 只），与 A/B/C 池不合并计数。命中≠可买。<br><b>边界</b>　主观分层，不构成建议。静态快照，复盘后须重跑并发布。`;
+  const order=['A','B','C','恢复观察','掉出预筛','4分回榜'],counts={};order.forEach(l=>counts[l]=M.stocks.filter(s=>s.layer===l).length);
+  let th=`<div class="tab on" data-v="pool" data-l="__all">全部 <span class="n">${M.stocks.length}</span></div>`;
+  order.forEach(l=>{if(counts[l])th+=`<div class="tab" data-v="pool" data-l="${l}">${LAYER_NAME[l]} <span class="n">${counts[l]}</span></div>`;});
+  th+=`<div class="tab probe" data-v="probe">t_45 探针 <span class="n">${(M.probe||[]).length}</span></div>`;
+  const tabs=document.getElementById('tabs');tabs.innerHTML=th;
+  tabs.addEventListener('click',e=>{const t=e.target.closest('.tab');if(!t)return;tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');view=t.dataset.v;curLayer=t.dataset.l||'__all';sortKey=null;sortDir=1;detailId=null;clearDetail();setupView();renderList();if(window.innerWidth<=1000)window.scrollTo({top:0,behavior:'smooth'});});
+  document.getElementById('listBody').addEventListener('click',e=>{const tr=e.target.closest('tr[data-id]');if(tr)showDetail(tr.dataset.id);});
+  setupView();renderList();
+}
+fetchJSON('./meta.json',d=>!!(d&&d.stocks&&d.shards)).then(d=>{M=d;boot();}).catch(e=>{document.getElementById('subline').textContent='数据载入失败（已重试6次）：'+e.message+'　请刷新页面重试。';});
+</script>
+</body>
+</html>
