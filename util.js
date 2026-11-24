@@ -24,3 +24,21 @@ export async function fetchJSON(path,validate,tries){
   }
   throw last;
 }
+
+/* 分片版本缓存：key 用 meta.generated_at 失效；上限 24 片防止撑爆 localStorage */
+const CK='qb_shard_cache',MAX_SHARDS=24;
+const readShardCache=()=>{try{return JSON.parse(localStorage.getItem(CK)||'{}');}catch(_){return {};}};
+export function fetchShard(path,version,validate){
+  const c=readShardCache(),hit=c[path];
+  if(hit&&hit.v===version&&(!validate||validate(hit.d)))return Promise.resolve(hit.d);
+  return fetchJSON(path,validate).then(d=>{
+    try{
+      const keys=Object.keys(c);
+      while(keys.length>=MAX_SHARDS)delete c[keys.shift()];
+      c[path]={v:version,d};
+      localStorage.setItem(CK,JSON.stringify(c));
+    }catch(_){}
+    return d;
+  });
+}
+export function clearShardCache(){try{localStorage.removeItem(CK);}catch(_){}}

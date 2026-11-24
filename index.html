@@ -13,11 +13,13 @@
 <div class="layout">
   <div class="panel" id="listPanel">
     <div class="panel-head"><span class="t" id="listTitle">标的</span><span class="m" id="listMeta"></span></div>
+    <div class="searchbar"><input id="q" type="search" placeholder="搜索名称 / 代码…" autocomplete="off"></div>
     <div class="filters" id="filters"></div>
     <div class="scroll"><table class="lst"><thead><tr id="listHead"></tr></thead><tbody id="listBody"></tbody></table></div>
   </div>
   <div class="detail" id="detailPanel">
-    <div class="detail-empty" style="padding-top:90px">点击左侧任一标的<br>在新页面打开 K 线详情<br><span style="font-size:11px;opacity:.8">日线／月线 · MA5/10/20/60/120/250 · 拖拽平移＋滚轮缩放</span></div>
+    <div class="panel-head"><span class="t">当日概览</span><span class="m" id="ovMeta"></span></div>
+    <div class="ov-body" id="overview"><div class="loading">载入中…</div></div>
   </div>
 </div>
 <div class="footer-note" id="footer"></div>

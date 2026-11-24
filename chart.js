@@ -36,7 +36,8 @@ export class Chart{
     this.maOn={ma5:true,ma10:true,ma20:true,ma60:false,ma120:false,ma250:false};
     this.chart=null;this.chartSub=null;this.cs=null;this.hist=null;this.maSeries={};
     this._syncing=false;this._ro=null;this._labelRAF=0;
-    this._height=clamp(num(localStorage.getItem(HS_KEY),DEF_H),MIN_H,MAX_H);
+    let saved=DEF_H;try{saved=num(localStorage.getItem(HS_KEY),DEF_H);}catch(_){}
+    this._height=clamp(saved,MIN_H,MAX_H);
     this._mainEl=null;this._subEl=null;
     this._pinch=null;this._onResize=null;this._touch=null;
     this._bindCtl();
@@ -50,11 +51,7 @@ export class Chart{
     }));
   }
   _bindCtl(){
-    const zc=this.ctl;if(!zc)return;
-    const bind=(k,fn)=>{const el=zc.querySelector('[data-z="'+k+'"]');if(el)el.addEventListener('click',fn);};
-    bind('out',()=>this.zoom(-1));bind('in',()=>this.zoom(1));bind('reset',()=>this.reset());
-    const sl=zc.querySelector('input[data-z="pan"]');if(sl)sl.addEventListener('input',e=>this.pan(+e.target.value));
-    this._label=zc.querySelector('.zl');
+    this._label=this.ctl?this.ctl.querySelector('.zl'):null;
   }
   /* 主/副图各自的公共配置；手势口径与 rps 完全一致 */
   _base(){
@@ -137,10 +134,7 @@ export class Chart{
     if(this._labelRAF)return;
     this._labelRAF=requestAnimationFrame(()=>{
       this._labelRAF=0;
-      const full=this._full(),span=full.to-full.from;
       const cnt=Math.max(1,Math.round(r.to-r.from)),start=Math.max(0,Math.round(r.from));
-      const sl=this.ctl&&this.ctl.querySelector('input[data-z="pan"]');
-      if(sl){sl.max=Math.max(0,Math.round(span-cnt));sl.value=start;}
       const shown=Math.min(this._total,cnt);
       this._label.textContent=`显示 ${shown}/${this._total} 根${shown<this._total?'（'+fmt((start+1)/this._total*100,0)+'–'+fmt(Math.min(this._total,start+cnt)/this._total*100,0)+'%）':''}`;
     });
@@ -221,24 +215,6 @@ export class Chart{
     this._total=n;
     const def=window.innerWidth<=560?70:120,from=Math.max(0,n-def),to=this._full().to;
     requestAnimationFrame(()=>this._applyRange({from,to}));
-  }
-  zoom(dir){
-    if(!this.chart||!this._total)return;
-    const r=this.chart.timeScale().getVisibleLogicalRange();if(!r)return;
-    const full=this._full(),span=full.to-full.from;
-    const rf=Math.max(full.from,r.from),rt=Math.min(full.to,r.to),cnt=Math.max(MIN_SPAN,rt-rf),anchor=(rf+rt)/2;
-    const nc=dir>0?Math.max(MIN_SPAN,Math.round(cnt/1.6)):Math.min(span,Math.round(cnt*1.6));
-    if(nc>=span){this._applyRange(full);return;}
-    const from=Math.max(full.from,Math.min(full.to-nc,Math.round(anchor-nc/2)));
-    this._applyRange({from,to:from+nc});
-  }
-  reset(){if(this.chart&&this._total)this._applyRange(this._full());}
-  pan(v){
-    if(!this.chart||!this._total)return;
-    const r=this.chart.timeScale().getVisibleLogicalRange();if(!r)return;
-    const full=this._full(),cnt=clamp(r.to-r.from,MIN_SPAN,full.to-full.from);
-    const from=clamp(v,full.from,full.to-cnt);
-    this._applyRange({from,to:from+cnt});
   }
   dispose(){
     if(this._labelRAF)cancelAnimationFrame(this._labelRAF);

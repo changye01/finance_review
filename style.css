@@ -17,6 +17,10 @@ h1 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:v
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .panel-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .panel-head .t{font-size:14px;font-weight:600}.panel-head .m{color:var(--ink3);font-size:11px;font-family:ui-monospace,Menlo,monospace}
+.searchbar{padding:10px 14px;border-bottom:1px solid var(--line)}
+.searchbar input{width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:7px;color:var(--ink);padding:7px 10px;font-size:12px;font-family:inherit;outline:none}
+.searchbar input:focus{border-color:var(--blue)}
+.searchbar input::placeholder{color:var(--ink3)}
 .filters{display:flex;gap:5px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .pf{background:var(--surface2);border:1px solid var(--line);color:var(--ink2);padding:4px 10px;border-radius:6px;font-size:11.5px;cursor:pointer;font-family:inherit}
 .pf.on{background:rgba(250,173,20,.16);border-color:var(--amber);color:#ffc53d}
@@ -32,19 +36,27 @@ table.lst td.mono{font-family:ui-monospace,Menlo,monospace}
 .badge.A{background:rgba(245,34,45,.16);color:#ff6b6b}.badge.B{background:rgba(250,173,20,.15);color:#ffc53d}.badge.C{background:rgba(22,119,255,.14);color:#69b1ff}.badge.other{background:rgba(123,138,165,.16);color:var(--ink2)}
 .chip-new{background:var(--up);color:#fff;font-size:9.5px;padding:1px 4px;border-radius:4px;margin-left:4px;vertical-align:middle}
 .detail{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px 20px}
-.detail-empty{color:var(--ink3);text-align:center;padding:70px 10px;font-size:12.5px;line-height:1.9}
-.detail-head .dn{font-size:18px;font-weight:600}.code{color:var(--ink3);font-size:11.5px;font-family:ui-monospace,Menlo,monospace;margin-left:7px}
-.detail-meta{color:var(--ink3);font-size:11px;margin-top:5px;line-height:1.7}
+.detail .panel-head{padding:0 0 11px;margin-bottom:2px}
+.ov-body{max-height:calc(100vh - 260px);min-height:220px;overflow:auto;padding:4px 2px 0}
+.ov-sec{margin-bottom:17px}
+.ov-h{font-size:10.5px;color:var(--ink3);font-weight:600;letter-spacing:.4px;margin:0 0 8px}
+.ov-row{display:flex;align-items:center;gap:9px;width:100%;background:none;border:0;padding:5px 0;cursor:pointer;font-family:inherit;color:var(--ink2);font-size:11.5px;text-align:left}
+.ov-row:hover .ov-lab{color:var(--blue)}
+.ov-lab{width:74px;flex:none}
+.ov-bar{flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.ov-bar i{display:block;height:100%;background:var(--blue);border-radius:3px}
+.ov-num{width:58px;text-align:right;font-family:ui-monospace,Menlo,monospace;font-size:11px}
+.ov-num em{color:var(--ink3);font-style:normal}
+.ov-def{padding:6px 0;border-bottom:1px solid rgba(43,53,72,.4);font-size:11px;line-height:1.6;color:var(--ink3)}
+.ov-def b{color:var(--ink2);display:block;font-weight:600;margin-bottom:1px}
+.ov-hint{margin-top:14px;padding:9px 11px;background:var(--surface2);border-radius:7px;color:var(--ink3);font-size:11px;line-height:1.6}
+.code{color:var(--ink3);font-size:11.5px;font-family:ui-monospace,Menlo,monospace;margin-left:7px}
 .switch{display:flex;gap:0;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:12px 0 10px}
 .switch button{flex:1;background:var(--surface2);border:none;color:var(--ink2);padding:7px 0;font-size:12px;cursor:pointer;font-family:inherit}
 .switch button+button{border-left:1px solid var(--line)}.switch button.on{background:var(--blue);color:#fff}
 .chartbox{width:100%;background:var(--surface2);border-radius:8px;overflow:hidden;touch-action:pan-y;-webkit-user-select:none;user-select:none}
-.chartbox svg{display:block;width:100%;height:auto}
 .chart-ctl{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
-.chart-ctl button{background:var(--surface2);border:1px solid var(--line);color:var(--ink2);border-radius:6px;min-width:28px;height:26px;padding:0 8px;font-size:12px;cursor:pointer;font-family:inherit}
-.chart-ctl button:hover{border-color:var(--blue);color:var(--ink)}
-.chart-ctl input[type=range]{flex:1;min-width:80px;accent-color:var(--blue)}
-.chart-ctl .rng{color:var(--ink3);font-size:11px;font-family:ui-monospace,Menlo,monospace;white-space:nowrap}
+.chart-ctl .zl{color:var(--ink3);font-size:11px;font-family:ui-monospace,Menlo,monospace}
 .chart-ctl.hide{display:none}
 .detail-note{color:var(--ink3);font-size:10.5px;margin-top:8px;line-height:1.7}
 .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:12px 0 2px}
@@ -53,10 +65,15 @@ table.lst td.mono{font-family:ui-monospace,Menlo,monospace}
 .kpi .val{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
 .pos{color:var(--up)!important}.neg{color:var(--down)!important}
 .detail-desc{margin-top:12px;padding:11px 13px;background:var(--surface2);border-radius:7px;color:var(--ink2);font-size:11.5px;line-height:1.75}
-.detail-desc b{color:var(--amber)}
-.back-btn{display:none}
+.detail-desc:empty{display:none}
+.dd-row{display:flex;gap:10px;padding:4px 0}
+.dd-row+.dd-row{border-top:1px solid rgba(43,53,72,.5)}
+.dd-row b{flex:none;width:62px;color:var(--amber);font-weight:600}
+.dd-row span{flex:1;min-width:0}
+.dd-nums{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid rgba(43,53,72,.5);color:var(--ink3);font-size:11px}
+.dd-nums b{color:var(--ink);font-weight:600}
 .loading{color:var(--ink3);text-align:center;padding:40px;font-size:12px}
 .footer-note{margin-top:26px;padding:15px 18px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;color:var(--ink3);font-size:11.5px;line-height:1.85}
 .footer-note b{color:var(--ink2)}
-@media(max-width:1000px){.layout{grid-template-columns:1fr}.scroll{max-height:46vh;min-height:200px}.detail{order:-1}.detail-empty{padding:20px 10px}.back-btn{display:inline-block;background:var(--surface2);border:1px solid var(--line);color:var(--ink2);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;margin-bottom:8px}.detail-panel-hidden .chartbox,.detail-panel-hidden .switch,.detail-panel-hidden .kpis,.detail-panel-hidden .detail-desc,.detail-panel-hidden .detail-note{display:none}}
+@media(max-width:1000px){.layout{grid-template-columns:1fr}.scroll{max-height:46vh;min-height:200px}.ov-body{max-height:none;min-height:0}}
 @media(max-width:560px){.wrap{padding:16px 12px 50px}h1{font-size:17px}.tab{padding:6px 10px;font-size:11.5px}.kpis{grid-template-columns:repeat(3,1fr)}table.lst{font-size:11px}table.lst td,table.lst thead th{padding:6px 7px}}
