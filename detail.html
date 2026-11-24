@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>标的详情 · 量化看板</title>
+<link rel="stylesheet" href="./style.css">
+<style>
+.dt-wrap{max-width:1500px;margin:0 auto;padding:18px 26px 60px}
+.dt-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.dt-head .dn{font-size:22px;font-weight:600}.dt-head .code{font-size:13px;margin-left:8px}
+.dt-head .sub2{color:var(--ink3);font-size:12px;margin-top:6px;line-height:1.7}
+.dt-back{background:var(--surface);border:1px solid var(--line);color:var(--ink2);padding:7px 13px;border-radius:8px;font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:none}
+.dt-back:hover{border-color:var(--blue);color:var(--ink)}
+.ma-legend{display:flex;gap:5px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line)}
+.ma-lg{background:var(--surface2);border:1px solid var(--line);color:var(--ink3);padding:4px 9px;border-radius:6px;font-size:11.5px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px}
+.ma-lg i{width:9px;height:9px;border-radius:2px;display:inline-block;opacity:.45}
+.ma-lg.on{color:var(--ink);border-color:#3d4a63;background:rgba(255,255,255,.05)}
+.ma-lg.on i{opacity:1}
+@media(max-width:560px){.dt-wrap{padding:14px 12px 50px}.dt-head .dn{font-size:18px}}
+</style>
+</head>
+<body>
+<div class="dt-wrap">
+  <div class="dt-head">
+    <div><div class="dn" id="dName">载入中…</div><div class="sub2" id="dMeta"></div></div>
+    <button class="dt-back" id="dBack">← 返回看板</button>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <span class="t">K 线 · 量能</span>
+      <span class="switch" style="margin:0"><button class="on" data-m="daily">日线 · 不复权</button><button data-m="monthly">月线 · 前复权</button></span>
+    </div>
+    <div class="ma-legend" id="maLegend"></div>
+    <div style="padding:12px 14px 16px">
+      <div class="chartbox" id="chartbox"><div class="loading">载入图中…</div></div>
+      <div class="chart-ctl hide" id="zoomCtl"><button data-z="out" title="缩小范围">−</button><button data-z="in" title="放大范围">＋</button><input type="range" data-z="pan" min="0" max="0" value="0" title="拖动平移"><button data-z="reset" title="显示全部">重置</button><span class="zl"></span></div>
+      <div class="detail-note" id="detailNote"></div>
+      <div id="dKpis"></div>
+    </div>
+  </div>
+</div>
+<script type="module" src="./detail.js"></script>
+</body>
+</html>

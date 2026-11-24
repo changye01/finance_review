@@ -1,15 +1,32 @@
-/* SVG K 线绘制 + 缩放：无外部库，状态封装在 Chart 实例内 */
+/* SVG K 线绘制 + 缩放 + 均线：无外部库，状态封装在 Chart 实例内 */
 import {UP,DOWN,INK,GRID,fmt} from './util.js';
 
+/* 均线配色（仿 rps-review 图例） */
+export const MA_DEF=[{k:'ma5',label:'MA5',color:'#5b8def'},
+                     {k:'ma10',label:'MA10',color:'#e8a33d'},
+                     {k:'ma20',label:'MA20',color:'#c563d9'},
+                     {k:'ma60',label:'MA60',color:'#3fb6a8'},
+                     {k:'ma120',label:'MA120',color:'#d95b8e'},
+                     {k:'ma250',label:'MA250',color:'#9aa7bd'}];
+
 export class Chart{
-  constructor(box,ctl){
-    this.box=box;this.ctl=ctl;
+  constructor(box,ctl,legendEl){
+    this.box=box;this.ctl=ctl;this.legendEl=legendEl||null;
     this.obj=null;      // 当前序列 {daily,monthly}
     this.mode='daily';  // daily | monthly
     this.win=null;      // 缩放窗口 {start,count}，null=全量
+    this.maOn={ma5:false,ma10:false,ma20:false,ma60:false,ma120:false,ma250:false};
     this.box.style.cursor='grab';
     this._bindCtl();
     this._bindDrag();
+    if(this.legendEl)this._renderLegend();
+  }
+  _renderLegend(){
+    this.legendEl.innerHTML=MA_DEF.map(m=>`<button type="button" class="ma-lg ${this.maOn[m.k]?'on':''}" data-ma="${m.k}"><i style="background:${m.color}"></i>${m.label}</button>`).join('');
+    this.legendEl.querySelectorAll('[data-ma]').forEach(b=>b.addEventListener('click',()=>{
+      const k=b.dataset.ma;this.maOn[k]=!this.maOn[k];b.classList.toggle('on',this.maOn[k]);
+      if(this.obj)this.draw();
+    }));
   }
   _bindCtl(){
     const zc=this.ctl;
@@ -98,20 +115,36 @@ export class Chart{
     let start=0,count=total;
     if(this.win){count=Math.max(8,Math.min(total,this.win.count|0));start=Math.max(0,Math.min(total-count,this.win.start|0));this.win={start,count};}
     const dates=allDates.slice(start,start+count),ohlc=allOhlc.slice(start,start+count),bars=allBars.slice(start,start+count);
-    const W=800,H=340,PL=8,PR=58,PT=14,KH=218,GAP=10,VH=64;
+    /* 手机窄屏：拉高 viewBox（K线区/量区同比放大），显示高度随宽度按比例变高 */
+    const narrow=window.innerWidth<=560;
+    const W=800,PL=8,PR=narrow?46:58,PT=14,
+          KH=narrow?450:218,GAP=narrow?14:10,VH=narrow?130:64;
+    const H=PT+KH+GAP+VH+(narrow?32:34);
     const IW=W-PL-PR,n=ohlc.length;
+    const FS=narrow?16:10,LSW=narrow?1.4:0.6,CSW=narrow?1.6:1;
+    const mas=daily?(obj.daily.ma||{}):(obj.monthly.ma||{});
+    const visMa=MA_DEF.filter(m=>this.maOn[m.k]&&mas[m.k]);
     const hi=Math.max(...ohlc.map(o=>o[3])),lo=Math.min(...ohlc.map(o=>o[2]));
-    const pad=(hi-lo)*0.06||1,yMax=hi+pad,yMin=lo-pad;
+    const maVals=visMa.flatMap(m=>mas[m.k].slice(start,start+count)).filter(v=>v!=null);
+    const yHi=maVals.length?Math.max(hi,...maVals):hi,yLo=maVals.length?Math.min(lo,...maVals):lo;
+    const pad=(yHi-yLo)*0.06||1,yMax=yHi+pad,yMin=yLo-pad;
     const sy=v=>PT+KH-(v-yMin)/(yMax-yMin)*KH;
-    const cw=IW/n,bw=Math.max(1,Math.min(cw*0.62,28)),cx=i=>PL+cw*(i+0.5);
+    const cw=IW/n,bw=Math.max(1,Math.min(cw*0.62,narrow?42:28)),cx=i=>PL+cw*(i+0.5);
     let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
-    for(let g=0;g<4;g++){const y=PT+KH*g/3;s+=`<line x1="${PL}" y1="${y}" x2="${PL+IW}" y2="${y}" stroke="${GRID}" stroke-width="0.6"/><text x="${PL+IW+4}" y="${y+3}" fill="${INK}" font-size="10">${fmt(yMax-(yMax-yMin)*g/3,2)}</text>`;}
-    ohlc.forEach((o,i)=>{const up=o[1]>=o[0],col=up?UP:DOWN,x=cx(i);s+=`<line x1="${x}" y1="${sy(o[3])}" x2="${x}" y2="${sy(o[2])}" stroke="${col}" stroke-width="1"/><rect x="${(x-bw/2).toFixed(1)}" y="${Math.min(sy(o[0]),sy(o[1])).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,Math.abs(sy(o[0])-sy(o[1]))).toFixed(1)}" fill="${up?col:'none'}" stroke="${col}" stroke-width="1"/>`;});
+    for(let g=0;g<4;g++){const y=PT+KH*g/3;s+=`<line x1="${PL}" y1="${y}" x2="${PL+IW}" y2="${y}" stroke="${GRID}" stroke-width="${LSW}"/><text x="${PL+IW+4}" y="${y+4}" fill="${INK}" font-size="${FS}">${fmt(yMax-(yMax-yMin)*g/3,2)}</text>`;}
+    /* 均线折线（忽略 null，遇 null 断线） */
+    visMa.forEach(m=>{
+      const arr=mas[m.k].slice(start,start+count);let seg=[],paths=[];
+      arr.forEach((v,i)=>{if(v==null){if(seg.length>1)paths.push(seg);seg=[];}else seg.push(`${cx(i).toFixed(1)},${sy(v).toFixed(1)}`);});
+      if(seg.length>1)paths.push(seg);
+      paths.forEach(p=>{s+=`<polyline points="${p.join(' ')}" fill="none" stroke="${m.color}" stroke-width="${narrow?2.2:1.5}" opacity="0.92"/>`;});
+    });
+    ohlc.forEach((o,i)=>{const up=o[1]>=o[0],col=up?UP:DOWN,x=cx(i);s+=`<line x1="${x}" y1="${sy(o[3])}" x2="${x}" y2="${sy(o[2])}" stroke="${col}" stroke-width="${CSW}"/><rect x="${(x-bw/2).toFixed(1)}" y="${Math.min(sy(o[0]),sy(o[1])).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,Math.abs(sy(o[0])-sy(o[1]))).toFixed(1)}" fill="${up?col:'none'}" stroke="${col}" stroke-width="${CSW}"/>`;});
     const vTop=PT+KH+GAP,vMax=Math.max(...bars)||1;
     bars.forEach((b,i)=>{const up=ohlc[i][1]>=ohlc[i][0],h=b/vMax*VH;s+=`<rect x="${(cx(i)-bw/2).toFixed(1)}" y="${(vTop+VH-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${up?'rgba(245,34,45,.55)':'rgba(82,196,26,.55)'}"/>`;});
-    s+=`<line x1="${PL}" y1="${vTop+VH}" x2="${PL+IW}" y2="${vTop+VH}" stroke="${GRID}" stroke-width="0.6"/>`;
-    const nl=Math.min(6,n),lbl=[];for(let k=0;k<nl;k++)lbl.push(Math.round(k*(n-1)/(nl-1||1)));
-    lbl.forEach(i=>{s+=`<text x="${cx(i)}" y="${H-4}" fill="${INK}" font-size="10" text-anchor="middle">${dates[i]}</text>`;});
+    s+=`<line x1="${PL}" y1="${vTop+VH}" x2="${PL+IW}" y2="${vTop+VH}" stroke="${GRID}" stroke-width="${LSW}"/>`;
+    const nl=Math.min(narrow?4:6,n),lbl=[];for(let k=0;k<nl;k++)lbl.push(Math.round(k*(n-1)/(nl-1||1)));
+    lbl.forEach(i=>{s+=`<text x="${cx(i)}" y="${H-6}" fill="${INK}" font-size="${FS}" text-anchor="middle">${dates[i]}</text>`;});
     s+='</svg>';this.box.innerHTML=s;
     this._syncCtl(total,start,count);
   }
