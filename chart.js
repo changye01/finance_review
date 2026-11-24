@@ -1,12 +1,12 @@
-/* K 线：TradingView lightweight-charts v5（Canvas 渲染 + 原生触摸手势）
-   与 rps-review 同款：横拖平移、双指捏合缩放、滚轮平移、纵拖不抢页面滚动。
-   对外 API 保持旧版一致（setData/zoom/reset/pan + MA 开关），detail.js 无需改。 */
-/* TradingView lightweight-charts v5.2.0 官方 standalone 版（IIFE，无外部依赖）。
-   由 detail.html 在模块前以 <script src> 加载，挂到 window.LightweightCharts。 */
+/* K 线：TradingView lightweight-charts v5.2.0 —— 完整照搬 rps-review 的交互架构
+   ① 双独立 chart（主图 K线+MA / 副图成交量），各自 canvas，互不重排
+   ② range 边界钳制 _clamp + 共享 guard 双向同步（rps 的 _e / Oe）
+   ③ rightOffset=8；④ 双指上下捏合改高度 180–1800px（rps 特色）
+   ⑤ range 回调零 DOM 写入：范围文字用 rAF 节流，拖拽帧不碰布局
+   库：官方 standalone IIFE，由 detail.html 在模块前加载 → window.LightweightCharts */
 const {createChart,CandlestickSeries,LineSeries,HistogramSeries,CrosshairMode,ColorType}=
   (globalThis.LightweightCharts||{});
 
-/* 均线配色（仿 rps-review 图例） */
 export const MA_DEF=[{k:'ma5',label:'MA5',color:'#5b8def'},
                      {k:'ma10',label:'MA10',color:'#e8a33d'},
                      {k:'ma20',label:'MA20',color:'#c563d9'},
@@ -15,14 +15,30 @@ export const MA_DEF=[{k:'ma5',label:'MA5',color:'#5b8def'},
                      {k:'ma250',label:'MA250',color:'#9aa7bd'}];
 
 const UP='#f5222d',DOWN='#52c41a',INK='#aab6cc',GRID='#2b3548',BG='#151d2e';
+const RIGHT_OFF=8, MIN_SPAN=10;              // rps: et=8, 最小可视跨度 10
+const MIN_H=180, MAX_H=1800, DEF_H=520;      // rps 高度范围；默认总高 520
+const HS_KEY='lwc_chart_height';
+
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const num=(v,d)=>(v==null||v===''||!Number.isFinite(+v))?d:Math.round(+v);
+/* rps 的 Xe()：总量按类型分配主/副图高度，副图 clamp 到 [60,120] 之间 */
+function splitH(total){
+  const o=Math.max(MIN_H,num(total,DEF_H)),sep=17,body=Math.max(1,o-sep);
+  const want=Math.round(o*0.2);
+  const sub=clamp(want,Math.min(60,Math.max(1,body)),Math.min(120,Math.max(1,body)));
+  return {main:body-sub,sub,sep};
+}
 
 export class Chart{
   constructor(box,ctl,legendEl){
     this.box=box;this.ctl=ctl;this.legendEl=legendEl||null;
-    this.obj=null;this.mode='daily';
+    this.obj=null;this.mode='daily';this._total=0;
     this.maOn={ma5:true,ma10:true,ma20:true,ma60:false,ma120:false,ma250:false};
-    this.chart=null;this.cs=null;this.hist=null;this.maSeries={};
-    this._syncing=false;this._ro=null;
+    this.chart=null;this.chartSub=null;this.cs=null;this.hist=null;this.maSeries={};
+    this._syncing=false;this._ro=null;this._labelRAF=0;
+    this._height=clamp(num(localStorage.getItem(HS_KEY),DEF_H),MIN_H,MAX_H);
+    this._mainEl=null;this._subEl=null;
+    this._pinch=null;this._onResize=null;this._touch=null;
     this._bindCtl();
     if(this.legendEl)this._renderLegend();
   }
@@ -34,45 +50,136 @@ export class Chart{
     }));
   }
   _bindCtl(){
-    /* rps-review 无 +/- 按钮：缩放/平移全靠 Canvas 原生手势（拖拽、滚轮、捏合）。
-       若页面仍带旧控件则保留绑定，否则完全交给 charts。 */
     const zc=this.ctl;if(!zc)return;
     const bind=(k,fn)=>{const el=zc.querySelector('[data-z="'+k+'"]');if(el)el.addEventListener('click',fn);};
     bind('out',()=>this.zoom(-1));bind('in',()=>this.zoom(1));bind('reset',()=>this.reset());
-    const sl=zc.querySelector('[data-z="pan"]');if(sl)sl.addEventListener('input',e=>this.pan(+e.target.value));
+    const sl=zc.querySelector('input[data-z="pan"]');if(sl)sl.addEventListener('input',e=>this.pan(+e.target.value));
+    this._label=zc.querySelector('.zl');
   }
-  /* 首次 setData 时建 chart：单 chart + overlay 成交量（避免双 chart range 同步回环） */
-  _ensureChart(){
-    if(this.chart)return;
-    this.box.innerHTML='<div class="lwc-main"></div>';
-    const main=this.box.querySelector('.lwc-main');
+  /* 主/副图各自的公共配置；手势口径与 rps 完全一致 */
+  _base(){
     const narrow=window.innerWidth<=560;
-    const hMain=narrow?500:376;
-    main.style.height=hMain+'px';
-    const base={
+    return {
       layout:{background:{type:ColorType.Solid,color:BG},textColor:INK,fontSize:narrow?12:11,
               fontFamily:"-apple-system,BlinkMacSystemFont,'PingFang SC',Arial,sans-serif"},
       grid:{vertLines:{color:GRID,visible:true},horzLines:{color:GRID,visible:true}},
       crosshair:{mode:CrosshairMode.Normal,
                  vertLine:{color:'#5a6b8c',width:1,style:2,labelBackgroundColor:'#334155'},
                  horzLine:{color:'#5a6b8c',width:1,style:2,labelBackgroundColor:'#334155'}},
-      rightPriceScale:{borderColor:GRID,minimumWidth:narrow?52:62,scaleMargins:{top:0.08,bottom:0.26}},
-      timeScale:{borderColor:GRID,timeVisible:false,secondsVisible:false,rightOffset:2,leftOffset:1},
-      /* 与 rps-review 完全相同的手势口径 */
+      rightPriceScale:{borderColor:GRID,minimumWidth:narrow?52:62,scaleMargins:{top:0.08,bottom:0.08}},
+      timeScale:{borderColor:GRID,timeVisible:false,secondsVisible:false,rightOffset:RIGHT_OFF,leftOffset:1,
+                 ...(narrow?{minBarSpacing:0.5}:{})},
       handleScroll:{mouseWheel:true,pressedMouseMove:true,horzTouchDrag:true,vertTouchDrag:false},
       handleScale:{axisPressedMouseMove:{time:true,price:true},axisDoubleClickReset:true,mouseWheel:true,pinch:true},
       localization:{locale:'zh-CN'}
     };
-    const w=Math.max(240,this.box.clientWidth||window.innerWidth-40);
-    this.chart=createChart(main,{...base,width:w,height:hMain});
-    this.chart.timeScale().subscribeVisibleLogicalRangeChange(r=>this._onRange(r));
+  }
+  /* rps Xe()：设置两图高度（双指捏合时实时调用） */
+  _setHeight(h){
+    this._height=clamp(Math.round(h),MIN_H,MAX_H);
+    const s=splitH(this._height);
+    if(this._mainEl)this._mainEl.style.height=s.main+'px';
+    if(this._subEl)this._subEl.style.height=s.sub+'px';
+    if(this.chart)this.chart.applyOptions({height:s.main});
+    if(this.chartSub)this.chartSub.applyOptions({height:s.sub});
+  }
+  _ensureChart(){
+    if(this.chart)return;
+    this.box.innerHTML='<div class="lwc-main"></div><div class="lwc-sep"></div><div class="lwc-sub"></div>';
+    const main=this.box.querySelector('.lwc-main'),sub=this.box.querySelector('.lwc-sub');
+    this._mainEl=main;this._subEl=sub;
+    const s=splitH(this._height);
+    main.style.height=s.main+'px';sub.style.height=s.sub+'px';
+    const w=Math.max(240,this.box.clientWidth||window.innerWidth-40),base=this._base();
+    this.chart=createChart(main,{...base,width:w,height:s.main});
+    this.chartSub=createChart(sub,{...base,width:w,height:s.sub,
+      rightPriceScale:{...base.rightPriceScale,scaleMargins:{top:0.10,bottom:0.06}},
+      handleScale:{...base.handleScale,axisPressedMouseMove:{time:false,price:false}},
+      crosshair:{...base.crosshair,horzLine:{visible:false}}
+    });
+    /* rps 的 Oe()：双向同步 + 边界钳制 + 共享 guard（防回环）。
+       只有钳制后 range 真的变了才回写，避免事件风暴。 */
+    const link=(a,b)=>a.timeScale().subscribeVisibleLogicalRangeChange(r=>{
+      if(this._syncing||!r)return;
+      this._syncing=true;
+      try{
+        const c=this._clamp(r);
+        if(c.from!==r.from||c.to!==r.to)a.timeScale().setVisibleLogicalRange(c);
+        b.timeScale().setVisibleLogicalRange(c);
+        this._queueLabel(c);
+      }finally{this._syncing=false;}
+    });
+    link(this.chart,this.chartSub);
+    link(this.chartSub,this.chart);
+    /* 宽度自适应（观察 box，不观察 chart 内部，避免回环） */
     this._ro=new ResizeObserver(()=>{
       const cw=Math.max(240,this.box.clientWidth||window.innerWidth-40);
       if(this.chart)this.chart.applyOptions({width:cw});
+      if(this.chartSub)this.chartSub.applyOptions({width:cw});
     });
     this._ro.observe(this.box);
+    /* rps 特色：双指上下捏合改图表高度（180–1800），横向捏合仍交给 charts 缩放时间轴 */
+    this._bindPinchHeight();
   }
-  /* 历史 K 线 + 成交量 + MA 一次性装载；切日/月在同实例内 setData */
+  /* rps 的 _e()：把 range 钳进 [0, n-1+rightOffset]，跨度至少 MIN_SPAN */
+  _clamp(r){
+    const maxTo=Math.max((this._total||1)-1+RIGHT_OFF,0);
+    const want=Math.max(r.to-r.from,MIN_SPAN),cap=Math.max(maxTo,MIN_SPAN),w=Math.min(want,cap);
+    let from=r.from,to=r.to;
+    if(from<0){from=0;to=w;}
+    if(to>maxTo){to=maxTo;from=Math.max(0,to-w);}
+    return {from,to};
+  }
+  _full(){return {from:0,to:Math.max(MIN_SPAN,(this._total||1)-1+RIGHT_OFF)};}
+  /* 范围文字用 rAF 节流：拖拽每帧最多写一次，且只写缓存的 label 节点 */
+  _queueLabel(r){
+    if(!this._label||!this._total||!r)return;
+    if(this._labelRAF)return;
+    this._labelRAF=requestAnimationFrame(()=>{
+      this._labelRAF=0;
+      const full=this._full(),span=full.to-full.from;
+      const cnt=Math.max(1,Math.round(r.to-r.from)),start=Math.max(0,Math.round(r.from));
+      const sl=this.ctl&&this.ctl.querySelector('input[data-z="pan"]');
+      if(sl){sl.max=Math.max(0,Math.round(span-cnt));sl.value=start;}
+      const shown=Math.min(this._total,cnt);
+      this._label.textContent=`显示 ${shown}/${this._total} 根${shown<this._total?'（'+fmt((start+1)/this._total*100,0)+'–'+fmt(Math.min(this._total,start+cnt)/this._total*100,0)+'%）':''}`;
+    });
+  }
+  _applyRange(r){
+    if(!this.chart)return;
+    const c=this._clamp(r);
+    this.chart.timeScale().setVisibleLogicalRange(c);
+    this.chartSub.timeScale().setVisibleLogicalRange(c);
+    if(this.ctl)this.ctl.classList.remove('hide');
+    this._queueLabel(c);
+  }
+  /* rps 双指改高度：监听容器 touch，双指 Y 间距变化 → 高度 */
+  _bindPinchHeight(){
+    const box=this.box;
+    const spanY=e=>Math.abs(e.touches[0].clientY-e.touches[1].clientY);
+    const start=e=>{
+      if(e.touches.length===2){this._pinch={d:spanY(e),h:this._height};}
+    };
+    const move=e=>{
+      if(!this._pinch||e.touches.length!==2)return;
+      e.preventDefault(); // 阻止父容器滚动
+      const h=clamp(Math.round(this._pinch.h+(spanY(e)-this._pinch.d)*1.15),MIN_H,MAX_H);
+      if(h===this._height)return;
+      this._setHeight(h);
+    };
+    const end=e=>{
+      if(this._pinch&&e.touches.length<2){
+        try{localStorage.setItem(HS_KEY,String(this._height));}catch(_){}
+        this._pinch=null;
+      }
+    };
+    box.addEventListener('touchstart',start,{passive:true});
+    box.addEventListener('touchmove',move,{passive:false});
+    box.addEventListener('touchend',end,{passive:true});
+    box.addEventListener('touchcancel',end,{passive:true});
+    this._touch={start,move,end};
+  }
+  /* 历史 K 线 + 成交量 + MA 一次性装载；切日/月在同实例 setData */
   setData(obj,mode){
     this.obj=obj;this.mode=mode;this._ensureChart();
     if(this.ctl)this.ctl.classList.remove('hide');
@@ -82,25 +189,20 @@ export class Chart{
     const bars=daily?obj.daily.vol:obj.monthly.amt;
     const mas=daily?(obj.daily.ma||{}):(obj.monthly.ma||{});
     const n=Math.min(dates.length,ohlc.length);if(!n)return;
-    /* 数据按 time 升序；lightweight-charts 要求时间严格递增且唯一 */
     const candles=[],hist=[];
     for(let i=0;i<n;i++){
       const o=ohlc[i];
       candles.push({time:dates[i],open:o[0],close:o[1],low:o[2],high:o[3]});
-      hist.push({time:dates[i],value:bars[i]||0,color:o[1]>=o[0]?'rgba(245,34,45,.42)':'rgba(82,196,26,.42)'});
+      hist.push({time:dates[i],value:bars[i]||0,color:o[1]>=o[0]?'rgba(245,34,45,.55)':'rgba(82,196,26,.55)'});
     }
     if(!this.cs){
       this.cs=this.chart.addSeries(CandlestickSeries,{
         upColor:UP,downColor:DOWN,borderUpColor:UP,borderDownColor:DOWN,
         wickUpColor:UP,wickDownColor:DOWN,priceLineVisible:false,lastValueVisible:true
       });
-      this.hist=this.chart.addSeries(HistogramSeries,{
-        priceScaleId:'',priceFormat:{type:'price',precision:2,minMove:0.01},
-        priceLineVisible:false,lastValueVisible:false
+      this.hist=this.chartSub.addSeries(HistogramSeries,{
+        priceFormat:{type:'price',precision:2,minMove:0.01},priceLineVisible:false,lastValueVisible:false
       });
-      /* 成交量 overlay 的 scaleMargins 必须设在 chart 的 overlay priceScale 上
-         （series 创建之后才有该 scale），否则柱子占满主图遮挡 K 线 */
-      this.chart.priceScale('').applyOptions({scaleMargins:{top:0.78,bottom:0.02}});
       MA_DEF.forEach(m=>{
         this.maSeries[m.k]=this.chart.addSeries(LineSeries,{
           color:m.color,lineWidth:1,priceLineVisible:false,lastValueVisible:false,
@@ -111,69 +213,43 @@ export class Chart{
     this.cs.setData(candles);
     this.hist.setData(hist);
     MA_DEF.forEach(m=>{
-      const arr=mas[m.k]||[];const pts=[];
+      const arr=mas[m.k]||[],pts=[];
       for(let i=0;i<n;i++){const v=arr[i];if(v!=null)pts.push({time:dates[i],value:v});}
       this.maSeries[m.k].setData(pts);
     });
-    /* 默认展示最近 ~120 根（手机 ~70 根），可拖可缩；与旧版观感接近。
-       ⚠️ lightweight-charts 在 setData 同帧设 range 会被内部 fitContent 覆盖，
-       必须等下一帧（rps-review 自身也是 rAF 延迟设置）。 */
+    /* 默认展示最近 ~120 根（手机 ~70），rAF 延迟设置（同帧会被内部 fitContent 覆盖） */
     this._total=n;
-    const def=window.innerWidth<=560?70:120;
-    const from=Math.max(0,n-def),to=this._full().to;
+    const def=window.innerWidth<=560?70:120,from=Math.max(0,n-def),to=this._full().to;
     requestAnimationFrame(()=>this._applyRange({from,to}));
   }
-  /* logical range 的合法区间：from 最小 0，to 最大 n-1+rightOffset。
-     rightOffset=2 → toMax=n+1；可视根数 = r.to-r.from（含右侧留白，
-     故满屏显示 n+1 而非 n，标签上按 min(n,跨度) 显示以免超过总数）。 */
-  _full(){return {from:0,to:Math.max(1,(this._total||1)-1+2)};}
-  /* 统一设置可视区间：charts 的 getVisibleLogicalRange 异步生效，
-     故 UI 用目标值立即更新，订阅回调随后再校准一次 */
-  _applyRange(r){
-    if(!this.chart)return;
-    this.chart.timeScale().setVisibleLogicalRange(r);
-    if(this.ctl)this.ctl.classList.remove('hide');
-    this._onRange(r);
-  }
-  _onRange(r){
-    if(!this.ctl||!this._total||!r)return;
-    const sl=this.ctl.querySelector('input[data-z="pan"]'),lab=this.ctl.querySelector('.zl');
-    const full=this._full(),span=full.to-full.from;
-    const cnt=Math.max(1,Math.round(r.to-r.from));
-    const start=Math.max(0,Math.round(r.from));
-    if(sl){sl.max=Math.max(0,Math.round(span-cnt));sl.value=start;}
-    if(lab){
-      const shown=Math.min(this._total,cnt);
-      lab.textContent=`显示 ${shown}/${this._total} 根${shown<this._total?'（'+fmt((start+1)/this._total*100,0)+'–'+fmt(Math.min(this._total,start+cnt)/this._total*100,0)+'%）':''}`;
-    }
-  }
-  /* 以可视窗口中心为锚缩放；dir>0 放大（根数变少 → K 线更大）。
-     跨度上限用 full.to-full.from，不再跟数据根数 n 比较，避免 rightOffset 导致卡死。 */
   zoom(dir){
     if(!this.chart||!this._total)return;
-    const ts=this.chart.timeScale(),r=ts.getVisibleLogicalRange();if(!r)return;
+    const r=this.chart.timeScale().getVisibleLogicalRange();if(!r)return;
     const full=this._full(),span=full.to-full.from;
-    // charts 内部可能返回负 from（leftOffset/fitContent 副作用），先夹到合法区间
-    const rf=Math.max(full.from,r.from),rt=Math.min(full.to,r.to);
-    const cnt=Math.max(8,rt-rf),anchor=(rf+rt)/2;
-    const nc=dir>0?Math.max(6,Math.round(cnt/1.6)):Math.min(span,Math.round(cnt*1.6));
+    const rf=Math.max(full.from,r.from),rt=Math.min(full.to,r.to),cnt=Math.max(MIN_SPAN,rt-rf),anchor=(rf+rt)/2;
+    const nc=dir>0?Math.max(MIN_SPAN,Math.round(cnt/1.6)):Math.min(span,Math.round(cnt*1.6));
     if(nc>=span){this._applyRange(full);return;}
     const from=Math.max(full.from,Math.min(full.to-nc,Math.round(anchor-nc/2)));
     this._applyRange({from,to:from+nc});
   }
-  reset(){
-    if(!this.chart||!this._total)return;
-    this._applyRange(this._full());
-  }
+  reset(){if(this.chart&&this._total)this._applyRange(this._full());}
   pan(v){
     if(!this.chart||!this._total)return;
-    const ts=this.chart.timeScale(),r=ts.getVisibleLogicalRange();if(!r)return;
-    const full=this._full(),cnt=Math.max(8,Math.min(full.to,full.from+ (r.to-r.from))-full.from);
-    const from=Math.max(full.from,Math.min(full.to-cnt,v));
+    const r=this.chart.timeScale().getVisibleLogicalRange();if(!r)return;
+    const full=this._full(),cnt=clamp(r.to-r.from,MIN_SPAN,full.to-full.from);
+    const from=clamp(v,full.from,full.to-cnt);
     this._applyRange({from,to:from+cnt});
   }
   dispose(){
+    if(this._labelRAF)cancelAnimationFrame(this._labelRAF);
     if(this._ro)this._ro.disconnect();
+    if(this._touch){
+      this.box.removeEventListener('touchstart',this._touch.start);
+      this.box.removeEventListener('touchmove',this._touch.move);
+      this.box.removeEventListener('touchend',this._touch.end);
+      this.box.removeEventListener('touchcancel',this._touch.end);
+    }
     if(this.chart)this.chart.remove();
+    if(this.chartSub)this.chartSub.remove();
   }
 }

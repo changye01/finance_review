@@ -5,7 +5,7 @@ import {orderedList} from './list.js';
 
 const NOTE_DAILY='不复权日线 · 上K线／下成交量（百万股）· 成交额为湖内精确值（amount 元）';
 const NOTE_MONTH='前复权月线 · 上K线／下成交额（亿元）· 开＝月首日／收＝月末日';
-const ZOOM_HINT='　·　左右拖动平移、滚轮/双指捏合缩放（范围越小K线越大，rps-review 式）；点均线开关切换 MA5/10/20/60/120/250；←/→ 键翻上/下一个标的';
+const ZOOM_HINT='　·　左右拖动平移、滚轮/双指捏合缩放（范围越小K线越大），双指上下拖动调图表高度（180–1800px，自动记住）；rps-review 同款交互 · 点均线开关切换 MA5/10/20/60/120/250 · ←/→ 键翻上/下一个标的';
 
 const qs=new URLSearchParams(location.search);
 const sid=qs.get('sid')||'';
