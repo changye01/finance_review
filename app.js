@@ -1,5 +1,6 @@
 /* 主逻辑：列表渲染、分层/探针 tab、排序；点击标的 → 新标签页打开 detail.html */
 import {fmt,cls,sgn,bandCls,fetchJSON,resUrl} from './util.js';
+import {orderedList} from './list.js';
 
 const LAYER_NAME={A:'A · 可用',B:'B · 观察',C:'C · 不做',恢复观察:'恢复观察',掉出预筛:'掉出预筛','4分回榜':'4分回榜'};
 const LAYER_TIP={A:'四条准入全过：5分 / 回撤<30% / 周转≥2× / 距高<15%',B:'5分但准入未全过，或成立但缺第二日读数；连续两日成立才升A',C:'回撤>30% 一律留C，不因单日反弹或涨停升级',恢复观察:'结束判定被推翻，只核周转能否回2×，不升不降',掉出预筛:'上期在池、本期未过门槛，只留读数不参与分层','4分回榜':'重回预筛但未进5分，不参与分层'};
@@ -8,12 +9,12 @@ const COLS={pool:[{k:'layer',t:'层',f:0},{k:'name',t:'标的',f:0},{k:'chg',t:'
 
 let M=null,view='pool',curLayer='__all',probeFilter='all',sortKey=null,sortDir=1;
 
-function dataset(){if(view==='probe')return (M.probe||[]).slice();let a=(M.stocks||[]).slice();if(curLayer!=='__all')a=a.filter(x=>x.layer===curLayer);return a;}
-function filtered(){let a=dataset();if(view==='probe'){if(probeFilter==='fresh')a=a.filter(x=>x.fresh);else if(probeFilter==='green')a=a.filter(x=>x.band&&x.band.indexOf('🟢')>=0);else if(probeFilter==='back')a=a.filter(x=>x.band&&x.band.indexOf('⚪')>=0);}if(sortKey)a.sort((x,y)=>{let vx=x[sortKey],vy=y[sortKey];if(vx==null)vx='';if(vy==null)vy='';if(typeof vx==='string'||typeof vy==='string')return String(vx).localeCompare(String(vy),'zh')*sortDir;return (vx-vy)*sortDir;});return a;}
+function ctx(){return {view,curLayer,probeFilter,sortKey,sortDir};}
+function dataset(){return orderedList(M,ctx());}
 function cell(x,c){const v=x[c.k];if(c.k==='name'){const b=x.layer?`<span class="badge ${['A','B','C'].includes(x.layer)?x.layer:'other'}">${x.layer}</span> `:'';return `${b}${x.name}${x.fresh?'<span class="chip-new">新</span>':''}<br><span style="color:var(--ink3);font-size:10px">${x.code}</span>`;}if(c.k==='band')return `<span class="band-tag ${bandCls(v)}">${v||'—'}</span>`;if(c.k==='layer'||c.k==='state'||c.k==='date')return v||'—';if(typeof v!=='number')return v==null?'—':v;const isPct=['chg','turn','dist_high','drawdown'].includes(c.k);return `<span class="${isPct?cls(v):''}">${fmt(v,1)}${isPct?'%':(['thr','mult'].includes(c.k)?'×':'')}</span>`;}
 function renderList(){
   document.getElementById('listHead').innerHTML=COLS[view].map(c=>`<th data-k="${c.k}">${c.t}${sortKey===c.k?(sortDir>0?' ↑':' ↓'):''}</th>`).join('');
-  document.getElementById('listBody').innerHTML=filtered().map(x=>{const id=x.sid||x.code;return `<tr data-id="${id}" title="点击进入详情">${COLS[view].map(c=>`<td class="${c.f?'mono':''}">${cell(x,c)}</td>`).join('')}</tr>`;}).join('');
+  document.getElementById('listBody').innerHTML=dataset().map(x=>{const id=x.sid||x.code;return `<tr data-id="${id}" title="点击进入详情">${COLS[view].map(c=>`<td class="${c.f?'mono':''}">${cell(x,c)}</td>`).join('')}</tr>`;}).join('');
   document.querySelectorAll('#listHead th[data-k]').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.k;if(sortKey===k)sortDir=-sortDir;else{sortKey=k;sortDir=1;}renderList();}));
 }
 function setupView(){
@@ -38,10 +39,12 @@ function boot(){
   tabs.addEventListener('click',e=>{const t=e.target.closest('.tab');if(!t)return;tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');view=t.dataset.v;curLayer=t.dataset.l||'__all';sortKey=null;sortDir=1;setupView();renderList();});
   document.getElementById('listBody').addEventListener('click',e=>{
     const tr=e.target.closest('tr[data-id]');if(!tr)return;
-    const u='./detail.html?sid='+encodeURIComponent(tr.dataset.id);
+    const c=ctx();
+    const q=new URLSearchParams({sid:tr.dataset.id,v:c.view,l:c.curLayer,f:c.probeFilter,sk:c.sortKey||'',sd:String(c.sortDir)});
     // 透传 sharecode（WorkBuddy 发布站需要；Cloudflare 上为空）
     const sc=new URLSearchParams(location.search).get('sharecode');
-    window.open(sc?u+'&sharecode='+encodeURIComponent(sc):u,'_blank','noopener');
+    if(sc)q.set('sharecode',sc);
+    window.open('./detail.html?'+q.toString(),'_blank','noopener');
   });
   setupView();renderList();
 }

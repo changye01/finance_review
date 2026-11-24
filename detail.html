@@ -10,8 +10,10 @@
 .dt-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
 .dt-head .dn{font-size:22px;font-weight:600}.dt-head .code{font-size:13px;margin-left:8px}
 .dt-head .sub2{color:var(--ink3);font-size:12px;margin-top:6px;line-height:1.7}
-.dt-back{background:var(--surface);border:1px solid var(--line);color:var(--ink2);padding:7px 13px;border-radius:8px;font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:none}
-.dt-back:hover{border-color:var(--blue);color:var(--ink)}
+.dt-back,.dt-nav{background:var(--surface);border:1px solid var(--line);color:var(--ink2);padding:7px 13px;border-radius:8px;font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:none}
+.dt-back:hover,.dt-nav:hover:not(:disabled){border-color:var(--blue);color:var(--ink)}
+.dt-nav:disabled{opacity:.4;cursor:default}
+.dt-pos{color:var(--ink3);font-size:11.5px;font-family:ui-monospace,Menlo,monospace;white-space:nowrap}
 .ma-legend{display:flex;gap:5px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line)}
 .ma-lg{background:var(--surface2);border:1px solid var(--line);color:var(--ink3);padding:4px 9px;border-radius:6px;font-size:11.5px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px}
 .ma-lg i{width:9px;height:9px;border-radius:2px;display:inline-block;opacity:.45}
@@ -24,7 +26,12 @@
 <div class="dt-wrap">
   <div class="dt-head">
     <div><div class="dn" id="dName">载入中…</div><div class="sub2" id="dMeta"></div></div>
-    <button class="dt-back" id="dBack">← 返回看板</button>
+    <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+      <button class="dt-nav" id="dPrev" title="上一个标的（← 键）">← 上一个</button>
+      <span class="dt-pos" id="dPos"></span>
+      <button class="dt-nav" id="dNext" title="下一个标的（→ 键）">下一个 →</button>
+      <button class="dt-back" id="dBack">返回看板</button>
+    </div>
   </div>
   <div class="panel">
     <div class="panel-head">

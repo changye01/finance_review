@@ -15,7 +15,8 @@ export class Chart{
     this.obj=null;      // 当前序列 {daily,monthly}
     this.mode='daily';  // daily | monthly
     this.win=null;      // 缩放窗口 {start,count}，null=全量
-    this.maOn={ma5:false,ma10:false,ma20:false,ma60:false,ma120:false,ma250:false};
+    // 默认勾选 MA5/10/20（仿 rps-review 常用短中期均线）
+    this.maOn={ma5:true,ma10:true,ma20:true,ma60:false,ma120:false,ma250:false};
     this.box.style.cursor='grab';
     this._bindCtl();
     this._bindDrag();
