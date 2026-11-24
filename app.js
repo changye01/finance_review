@@ -2,6 +2,8 @@
 import {fmt,cls,sgn,bandCls,fetchJSON} from './util.js';
 import {orderedList} from './list.js';
 
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 const LAYER_NAME={A:'A · 可用',B:'B · 观察',C:'C · 不做',恢复观察:'恢复观察',掉出预筛:'掉出预筛','4分回榜':'4分回榜'};
 const LAYER_TIP={A:'四条准入全过：5分 / 回撤<30% / 周转≥2× / 距高<15%',B:'5分但准入未全过，或成立但缺第二日读数；连续两日成立才升A',C:'回撤>30% 一律留C，不因单日反弹或涨停升级',恢复观察:'结束判定被推翻，只核周转能否回2×，不升不降',掉出预筛:'上期在池、本期未过门槛，只留读数不参与分层','4分回榜':'重回预筛但未进5分，不参与分层'};
 const PROBE_TIP='v5-noqx 启动探针 · 45日窗 · 严格T+5 · 固定只显示信号日在最近一个月内的标的。命中＝「从静默转放量」的形态候选，证据弱于五条打分，不表示可买、不是量化主控标的。⚠️「⚪已过参与窗口」仅作复盘。点标的在新页看日线，可切月线。';
@@ -9,6 +11,7 @@ const COLS={pool:[{k:'layer',t:'层',f:0},{k:'name',t:'标的',f:0},{k:'chg',t:'
 const ORDER=['A','B','C','恢复观察','掉出预筛','4分回榜'];
 
 let M=null,view='pool',curLayer='__all',probeFilter='all',sortKey=null,sortDir=1,query='';
+let SNAP=null,ovMode=(new URLSearchParams(location.search)).get('ov')==='hist'?'hist':'now'; // SNAP=历史快照；ovMode=右栏 概览/迁移
 
 function ctx(){return {view,layer:curLayer,probeFilter,sortKey,sortDir,query};}
 function dataset(){return orderedList(M,ctx());}
@@ -50,6 +53,32 @@ function renderOverview(counts){
     setupView();renderList();
   }));
 }
+/* 迁移视图：8 个真实快照日的探针 A 率轨迹 + 分层边界说明（历史分层无快照，不编造） */
+function renderHistory(){
+  const ov=document.getElementById('overview');
+  if(!SNAP||!SNAP.snapshots||!SNAP.snapshots.length){ov.innerHTML='<div class="tl-empty">历史快照数据不可用（snapshots.json 未生成）。</div>';return;}
+  const snaps=SNAP.snapshots.slice(-10); // 最多显示最近 10 日
+  const maxA=Math.max(1,...snaps.map(s=>s.probe.total||0));
+  let h='<div class="mig-legend"><span><i style="background:var(--up)"></i>探针「A 已验」占比</span><span>A率＝已验 / 当日探针总数</span></div>';
+  h+='<div class="mig-h">探针 T+5 验证进度 · 真实历史快照</div>';
+  snaps.forEach(s=>{
+    const p=s.probe||{},rate=p.a_rate==null?'—':fmt(p.a_rate,1)+'%';
+    const aPct=((p.a||0)/maxA*100).toFixed(1);
+    h+=`<div class="mig-row"><span class="mig-date">${esc(s.date.slice(5))}</span>`;
+    h+=`<span class="mig-bar" title="A ${p.a||0} / B ${p.b||0} / 共 ${p.total||0}"><i style="width:${aPct}%"></i></span>`;
+    h+=`<span class="mig-rate">${rate}</span><span class="mig-ab">${p.a||0}/${p.total||0}</span></div>`;
+  });
+  const last=snaps[snaps.length-1],ly=last.layers||{};
+  const layerTxt=ORDER.filter(l=>ly[l]).map(l=>`${l} ${ly[l]}`).join(' · ')||'无';
+  h+=`<div class="mig-note"><b>口径边界</b>　探针 A 率来自每日真实探针产物（${esc(SNAP.asof)} 为止 ${SNAP.snapshots.length} 个快照日），反映「当日窗口内已通过 T+5 验证的占比」，跨日总量随窗口滚动而变化，不可直接相减当作新增。<br><b>分层迁移</b>　A/B/C 分层池仅复盘当日（${esc(last.date)}）有快照：${esc(layerTxt)}。历史各日无分层存档，故不画 A↔B↔C 迁移曲线——不编数据。<br>需要看单只标的的状态轨迹，点进探针详情底部「标的状态时间轴」。</div>`;
+  ov.innerHTML=h;
+}
+function setOvMode(mode){
+  ovMode=mode;
+  document.querySelectorAll('.ov-sw button').forEach(b=>b.classList.toggle('on',b.dataset.ov===mode));
+  if(mode==='hist')renderHistory();
+  else{const counts={};ORDER.forEach(l=>counts[l]=M.stocks.filter(s=>s.layer===l).length);renderOverview(counts);}
+}
 function boot(){
   document.getElementById('subline').textContent='复盘日 '+M.date+' · CNEquity 本地湖（'+M.lake_coverage+'）· 生成 '+M.generated_at;
   const pm=M.probe_meta||{};
@@ -75,5 +104,15 @@ function boot(){
   document.getElementById('ovMeta').textContent=M.date;
   renderOverview(counts);
   setupView();renderList();
+  // 右栏 概览/迁移 切换
+  const osw=document.querySelector('.ov-sw');
+  if(osw){
+    osw.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.ov===ovMode));
+    osw.addEventListener('click',e=>{const b=e.target.closest('button[data-ov]');if(b)setOvMode(b.dataset.ov);});
+  }
+  // 迁移数据并行加载；若用户已切到迁移页则渲染之
+  fetchJSON('./snapshots.json',d=>!!(d&&d.snapshots)).then(d=>{
+    SNAP=d;if(ovMode==='hist')renderHistory();
+  }).catch(()=>{});
 }
 fetchJSON('./meta.json',d=>!!(d&&d.stocks&&d.shards)).then(d=>{M=d;boot();}).catch(e=>{document.getElementById('subline').textContent='数据载入失败：'+e.message+'　请刷新页面重试。';});

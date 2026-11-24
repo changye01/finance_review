@@ -17,7 +17,45 @@ const qs=new URLSearchParams(location.search);
 let sid=qs.get('sid')||'';
 let listCtx=parseCtx(qs);
 let M=null,chart=null,detailObj=null,mode='daily',prevSid=null,nextSid=null,loadSeq=0;
+let TL=null,tlLoading=null,curX=null; // 信号时间轴：sid → [{snap,state,band,dist,max_gain}]
 const memShards={};
+
+/* 信号时间轴：只渲染当前 sid 在各快照日的 state/band 迁移，状态首次变化高亮 */
+function tlStateCls(s){return s&&String(s).indexOf('A')===0?'a':'b';}
+function renderTimeline(x){
+  const box=document.getElementById('dTimeline');
+  if(!box)return;
+  if(!x||!x.date){box.innerHTML='';return;} // 主池 A/B/C 无探针时间轴（历史分层无快照，不编造）
+  if(!TL){box.innerHTML='<div class="tl-box"><div class="tl-sub">状态时间轴载入中…</div></div>';return;}
+  const rows=TL[sid]||[];
+  if(!rows.length){box.innerHTML='';return;}
+  let firstA=-1;
+  rows.forEach((r,i)=>{if(firstA<0&&String(r.state||'').indexOf('A')===0)firstA=i;});
+  let h='<div class="tl-box"><div class="tl-h">标的状态时间轴 · T+5 验证轨迹</div>';
+  h+=`<div class="tl-sub">信号日 ${esc(x.date)} · 跨 ${rows.length} 个复盘快照；状态来自每日真实探针产物，非插值。🔴＝转「A 已验」节点。</div><div class="tl-line">`;
+  rows.forEach((r,i)=>{
+    const isA=String(r.state||'').indexOf('A')===0;
+    const chg=(i===firstA&&firstA>0);
+    h+=`<div class="tl-node${chg?' chg':''}"><div class="tl-top"><span class="tl-day">${esc(r.snap)}</span>`;
+    h+=`<span class="tl-st ${tlStateCls(r.state)}">${esc(r.state||'—')}</span>`;
+    if(chg)h+='<span class="tl-arrow">▲ 转正</span>';
+    h+='</div>';
+    const bits=[];
+    if(r.dist!=null)bits.push(`距今 ${r.dist} 日`);
+    if(r.max_gain!=null)bits.push(`最大浮盈 ${fmt(r.max_gain,1)}%`);
+    if(r.band)bits.push(esc(r.band));
+    if(bits.length)h+=`<div class="tl-detail">${bits.join(' · ')}</div>`;
+    h+='</div>';
+  });
+  h+='</div></div>';
+  box.innerHTML=h;
+}
+function loadTimeline(){
+  if(TL){renderTimeline(curX);return;}
+  if(!tlLoading)tlLoading=fetchJSON('./signal_timeline.json',d=>!!(d&&typeof d==='object'))
+    .then(d=>{TL=d;renderTimeline(curX);return d;}).catch(()=>{});
+  return tlLoading;
+}
 
 function findStock(){
   let rows=orderedList(M,listCtx);
@@ -53,7 +91,9 @@ function goSid(target,push=true){
 function refresh(){
   const x=findStock();
   if(!x){document.getElementById('dName').textContent='未找到标的 '+sid;return;}
-  renderHead(x);loadData();
+  curX=x;
+  renderHead(x);renderTimeline(x);loadData();
+  if(x.date)loadTimeline(); // 仅探针标的需要时间轴
   window.scrollTo(0,0);
 }
 function bindNav(){
@@ -134,5 +174,7 @@ fetchJSON('./meta.json',d=>!!(d&&d.stocks&&d.shards)).then(d=>{
   M=d;
   const x=findStock();
   if(!x){document.getElementById('dName').textContent='未找到标的 '+sid;return;}
-  renderHead(x);bindNav();loadData();
+  curX=x;
+  renderHead(x);renderTimeline(x);bindNav();loadData();
+  if(x.date)loadTimeline();
 }).catch(e=>{document.getElementById('dName').textContent='数据载入失败：'+e.message;});

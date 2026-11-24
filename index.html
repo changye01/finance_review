@@ -18,7 +18,13 @@
     <div class="scroll"><table class="lst"><thead><tr id="listHead"></tr></thead><tbody id="listBody"></tbody></table></div>
   </div>
   <div class="detail" id="detailPanel">
-    <div class="panel-head"><span class="t">当日概览</span><span class="m" id="ovMeta"></span></div>
+    <div class="panel-head">
+      <span class="t">当日概览</span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <span class="m" id="ovMeta"></span>
+        <span class="ov-sw"><button class="on" data-ov="now">概览</button><button data-ov="hist">迁移</button></span>
+      </span>
+    </div>
     <div class="ov-body" id="overview"><div class="loading">载入中…</div></div>
   </div>
 </div>
