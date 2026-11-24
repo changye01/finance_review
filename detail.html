@@ -41,12 +41,13 @@
     <div class="ma-legend" id="maLegend"></div>
     <div style="padding:12px 14px 16px">
       <div class="chartbox" id="chartbox"><div class="loading">载入图中…</div></div>
-      <div class="chart-ctl hide" id="zoomCtl"><button data-z="out" title="缩小范围">−</button><button data-z="in" title="放大范围">＋</button><input type="range" data-z="pan" min="0" max="0" value="0" title="拖动平移"><button data-z="reset" title="显示全部">重置</button><span class="zl"></span></div>
+      <div class="chart-ctl hide" id="zoomCtl"><span class="zl"></span></div>
       <div class="detail-note" id="detailNote"></div>
       <div id="dKpis"></div>
     </div>
   </div>
 </div>
+<script src="./vendor/lightweight-charts.standalone.js"></script>
 <script type="module" src="./detail.js"></script>
 </body>
 </html>

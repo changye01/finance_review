@@ -1,5 +1,10 @@
-/* SVG K 线绘制 + 缩放 + 均线：无外部库，状态封装在 Chart 实例内 */
-import {UP,DOWN,INK,GRID,fmt} from './util.js';
+/* K 线：TradingView lightweight-charts v5（Canvas 渲染 + 原生触摸手势）
+   与 rps-review 同款：横拖平移、双指捏合缩放、滚轮平移、纵拖不抢页面滚动。
+   对外 API 保持旧版一致（setData/zoom/reset/pan + MA 开关），detail.js 无需改。 */
+/* TradingView lightweight-charts v5.2.0 官方 standalone 版（IIFE，无外部依赖）。
+   由 detail.html 在模块前以 <script src> 加载，挂到 window.LightweightCharts。 */
+const {createChart,CandlestickSeries,LineSeries,HistogramSeries,CrosshairMode,ColorType}=
+  (globalThis.LightweightCharts||{});
 
 /* 均线配色（仿 rps-review 图例） */
 export const MA_DEF=[{k:'ma5',label:'MA5',color:'#5b8def'},
@@ -9,164 +14,166 @@ export const MA_DEF=[{k:'ma5',label:'MA5',color:'#5b8def'},
                      {k:'ma120',label:'MA120',color:'#d95b8e'},
                      {k:'ma250',label:'MA250',color:'#9aa7bd'}];
 
+const UP='#f5222d',DOWN='#52c41a',INK='#aab6cc',GRID='#2b3548',BG='#151d2e';
+
 export class Chart{
   constructor(box,ctl,legendEl){
     this.box=box;this.ctl=ctl;this.legendEl=legendEl||null;
-    this.obj=null;      // 当前序列 {daily,monthly}
-    this.mode='daily';  // daily | monthly
-    this.win=null;      // 缩放窗口 {start,count}，null=全量
-    // 默认勾选 MA5/10/20（仿 rps-review 常用短中期均线）
+    this.obj=null;this.mode='daily';
     this.maOn={ma5:true,ma10:true,ma20:true,ma60:false,ma120:false,ma250:false};
-    this.box.style.cursor='grab';
+    this.chart=null;this.cs=null;this.hist=null;this.maSeries={};
+    this._syncing=false;this._ro=null;
     this._bindCtl();
-    this._bindDrag();
     if(this.legendEl)this._renderLegend();
   }
   _renderLegend(){
     this.legendEl.innerHTML=MA_DEF.map(m=>`<button type="button" class="ma-lg ${this.maOn[m.k]?'on':''}" data-ma="${m.k}"><i style="background:${m.color}"></i>${m.label}</button>`).join('');
     this.legendEl.querySelectorAll('[data-ma]').forEach(b=>b.addEventListener('click',()=>{
       const k=b.dataset.ma;this.maOn[k]=!this.maOn[k];b.classList.toggle('on',this.maOn[k]);
-      if(this.obj)this.draw();
+      const s=this.maSeries[k];if(s)s.applyOptions({visible:this.maOn[k]});
     }));
   }
   _bindCtl(){
-    const zc=this.ctl;
-    zc.querySelector('[data-z="out"]').addEventListener('click',()=>this.zoom(-1));
-    zc.querySelector('[data-z="in"]').addEventListener('click',()=>this.zoom(1));
-    zc.querySelector('[data-z="reset"]').addEventListener('click',()=>this.reset());
-    zc.querySelector('[data-z="pan"]').addEventListener('input',e=>this.pan(+e.target.value));
-    /* 鼠标滚轮以光标位置为中心缩放 */
-    this.box.addEventListener('wheel',e=>{
-      const total=this.total();if(!total)return;
-      e.preventDefault();
-      const r=this.box.getBoundingClientRect(),frac=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
-      const cur=this.win||{start:0,count:total};
-      let cnt=e.deltaY<0?Math.max(8,Math.round(cur.count/1.35)):Math.min(total,Math.round(cur.count*1.35));
-      if(cnt>=total)this.win=null;
-      else{const anchor=cur.start+frac*cur.count;this.win={start:Math.max(0,Math.min(total-cnt,Math.round(anchor-frac*cnt))),count:cnt};}
-      this.draw();
-    },{passive:false});
+    /* rps-review 无 +/- 按钮：缩放/平移全靠 Canvas 原生手势（拖拽、滚轮、捏合）。
+       若页面仍带旧控件则保留绑定，否则完全交给 charts。 */
+    const zc=this.ctl;if(!zc)return;
+    const bind=(k,fn)=>{const el=zc.querySelector('[data-z="'+k+'"]');if(el)el.addEventListener('click',fn);};
+    bind('out',()=>this.zoom(-1));bind('in',()=>this.zoom(1));bind('reset',()=>this.reset());
+    const sl=zc.querySelector('[data-z="pan"]');if(sl)sl.addEventListener('input',e=>this.pan(+e.target.value));
   }
-  /* 画布拖拽平移：按下记录起点，移动按像素→K线根数换算窗口起点
-     手机优化：touchmove 用 rAF 节流（一帧最多重绘一次 SVG），配合 CSS
-     touch-action:pan-y 让浏览器只管纵向滚动、横向交给本函数，避免每次
-     move 全量重建 DOM 造成的掉帧与页面跟手滚动。 */
-  _bindDrag(){
-    const box=this.box;
-    let dragging=false,startX=0,startWin=null,raf=0,pendingStart=null;
-    const px=e=>e.touches&&e.touches.length?e.touches[0].clientX:e.clientX;
-    const flush=()=>{ // rAF 内真正落一次窗口并绘制
-      raf=0;
-      if(pendingStart==null||!startWin)return;
-      this.win={start:pendingStart,count:startWin.count};
-      this.draw();
+  /* 首次 setData 时建 chart：单 chart + overlay 成交量（避免双 chart range 同步回环） */
+  _ensureChart(){
+    if(this.chart)return;
+    this.box.innerHTML='<div class="lwc-main"></div>';
+    const main=this.box.querySelector('.lwc-main');
+    const narrow=window.innerWidth<=560;
+    const hMain=narrow?500:376;
+    main.style.height=hMain+'px';
+    const base={
+      layout:{background:{type:ColorType.Solid,color:BG},textColor:INK,fontSize:narrow?12:11,
+              fontFamily:"-apple-system,BlinkMacSystemFont,'PingFang SC',Arial,sans-serif"},
+      grid:{vertLines:{color:GRID,visible:true},horzLines:{color:GRID,visible:true}},
+      crosshair:{mode:CrosshairMode.Normal,
+                 vertLine:{color:'#5a6b8c',width:1,style:2,labelBackgroundColor:'#334155'},
+                 horzLine:{color:'#5a6b8c',width:1,style:2,labelBackgroundColor:'#334155'}},
+      rightPriceScale:{borderColor:GRID,minimumWidth:narrow?52:62,scaleMargins:{top:0.08,bottom:0.26}},
+      timeScale:{borderColor:GRID,timeVisible:false,secondsVisible:false,rightOffset:2,leftOffset:1},
+      /* 与 rps-review 完全相同的手势口径 */
+      handleScroll:{mouseWheel:true,pressedMouseMove:true,horzTouchDrag:true,vertTouchDrag:false},
+      handleScale:{axisPressedMouseMove:{time:true,price:true},axisDoubleClickReset:true,mouseWheel:true,pinch:true},
+      localization:{locale:'zh-CN'}
     };
-    const down=e=>{
-      const total=this.total();if(!total)return;
-      // 全量视图无可平移空间：首次拖动时先收窄到右半段，让拖动立刻生效
-      if(!this.win&&total>8){
-        const cnt=Math.max(8,Math.round(total*0.5));
-        this.win={start:total-cnt,count:cnt};
-        this.draw();
-      }
-      dragging=true;startX=px(e);startWin=this.win?{...this.win}:null;pendingStart=null;
-      box.style.cursor='grabbing';
-    };
-    const move=e=>{
-      if(!dragging)return;
-      const total=this.total(),cnt=startWin?startWin.count:total;
-      if(cnt>=total)return; // 全量无可平移空间
-      if(e.cancelable)e.preventDefault();
-      const r=box.getBoundingClientRect();if(!r.width)return;
-      const shift=Math.round((px(e)-startX)/r.width*cnt);
-      const ns=Math.max(0,Math.min(total-cnt,(startWin?startWin.start:0)-shift));
-      if(this.win&&this.win.start===ns&&pendingStart===ns)return;
-      pendingStart=ns;
-      if(!raf)raf=requestAnimationFrame(flush); // 同帧多次 move 合并为一次绘制
-    };
-    const up=()=>{
-      if(!dragging)return;
-      dragging=false;box.style.cursor='grab';
-      if(raf){cancelAnimationFrame(raf);raf=0;}
-      // 抬手时补齐最后一帧，停在手指离开的位置
-      if(pendingStart!=null&&startWin&&(!this.win||this.win.start!==pendingStart)){
-        this.win={start:pendingStart,count:startWin.count};this.draw();
-      }
-      pendingStart=null;startWin=null;
-    };
-    box.addEventListener('mousedown',down);
-    box.addEventListener('touchstart',down,{passive:false});
-    window.addEventListener('mousemove',move);
-    box.addEventListener('touchmove',move,{passive:false});
-    window.addEventListener('mouseup',up);
-    box.addEventListener('touchend',up);
-    box.addEventListener('touchcancel',up);
+    const w=Math.max(240,this.box.clientWidth||window.innerWidth-40);
+    this.chart=createChart(main,{...base,width:w,height:hMain});
+    this.chart.timeScale().subscribeVisibleLogicalRangeChange(r=>this._onRange(r));
+    this._ro=new ResizeObserver(()=>{
+      const cw=Math.max(240,this.box.clientWidth||window.innerWidth-40);
+      if(this.chart)this.chart.applyOptions({width:cw});
+    });
+    this._ro.observe(this.box);
   }
-  total(){if(!this.obj)return 0;return (this.mode==='daily'?this.obj.daily.ohlc:this.obj.monthly.ohlc).length;}
-  /* 载入新标的：重置窗口。切日线/月线走同法（数据已在内存，无需重取） */
-  setData(obj,mode){this.obj=obj;this.mode=mode;this.win=null;this.draw();}
-  reset(){this.win=null;this.draw();}
+  /* 历史 K 线 + 成交量 + MA 一次性装载；切日/月在同实例内 setData */
+  setData(obj,mode){
+    this.obj=obj;this.mode=mode;this._ensureChart();
+    if(this.ctl)this.ctl.classList.remove('hide');
+    const daily=mode==='daily';
+    const dates=daily?obj.daily.dates:obj.monthly.ms.map(m=>m+'-01');
+    const ohlc=daily?obj.daily.ohlc:obj.monthly.ohlc;
+    const bars=daily?obj.daily.vol:obj.monthly.amt;
+    const mas=daily?(obj.daily.ma||{}):(obj.monthly.ma||{});
+    const n=Math.min(dates.length,ohlc.length);if(!n)return;
+    /* 数据按 time 升序；lightweight-charts 要求时间严格递增且唯一 */
+    const candles=[],hist=[];
+    for(let i=0;i<n;i++){
+      const o=ohlc[i];
+      candles.push({time:dates[i],open:o[0],close:o[1],low:o[2],high:o[3]});
+      hist.push({time:dates[i],value:bars[i]||0,color:o[1]>=o[0]?'rgba(245,34,45,.42)':'rgba(82,196,26,.42)'});
+    }
+    if(!this.cs){
+      this.cs=this.chart.addSeries(CandlestickSeries,{
+        upColor:UP,downColor:DOWN,borderUpColor:UP,borderDownColor:DOWN,
+        wickUpColor:UP,wickDownColor:DOWN,priceLineVisible:false,lastValueVisible:true
+      });
+      this.hist=this.chart.addSeries(HistogramSeries,{
+        priceScaleId:'',priceFormat:{type:'price',precision:2,minMove:0.01},
+        priceLineVisible:false,lastValueVisible:false
+      });
+      /* 成交量 overlay 的 scaleMargins 必须设在 chart 的 overlay priceScale 上
+         （series 创建之后才有该 scale），否则柱子占满主图遮挡 K 线 */
+      this.chart.priceScale('').applyOptions({scaleMargins:{top:0.78,bottom:0.02}});
+      MA_DEF.forEach(m=>{
+        this.maSeries[m.k]=this.chart.addSeries(LineSeries,{
+          color:m.color,lineWidth:1,priceLineVisible:false,lastValueVisible:false,
+          visible:this.maOn[m.k],crosshairMarkerVisible:false
+        });
+      });
+    }
+    this.cs.setData(candles);
+    this.hist.setData(hist);
+    MA_DEF.forEach(m=>{
+      const arr=mas[m.k]||[];const pts=[];
+      for(let i=0;i<n;i++){const v=arr[i];if(v!=null)pts.push({time:dates[i],value:v});}
+      this.maSeries[m.k].setData(pts);
+    });
+    /* 默认展示最近 ~120 根（手机 ~70 根），可拖可缩；与旧版观感接近。
+       ⚠️ lightweight-charts 在 setData 同帧设 range 会被内部 fitContent 覆盖，
+       必须等下一帧（rps-review 自身也是 rAF 延迟设置）。 */
+    this._total=n;
+    const def=window.innerWidth<=560?70:120;
+    const from=Math.max(0,n-def),to=this._full().to;
+    requestAnimationFrame(()=>this._applyRange({from,to}));
+  }
+  /* logical range 的合法区间：from 最小 0，to 最大 n-1+rightOffset。
+     rightOffset=2 → toMax=n+1；可视根数 = r.to-r.from（含右侧留白，
+     故满屏显示 n+1 而非 n，标签上按 min(n,跨度) 显示以免超过总数）。 */
+  _full(){return {from:0,to:Math.max(1,(this._total||1)-1+2)};}
+  /* 统一设置可视区间：charts 的 getVisibleLogicalRange 异步生效，
+     故 UI 用目标值立即更新，订阅回调随后再校准一次 */
+  _applyRange(r){
+    if(!this.chart)return;
+    this.chart.timeScale().setVisibleLogicalRange(r);
+    if(this.ctl)this.ctl.classList.remove('hide');
+    this._onRange(r);
+  }
+  _onRange(r){
+    if(!this.ctl||!this._total||!r)return;
+    const sl=this.ctl.querySelector('input[data-z="pan"]'),lab=this.ctl.querySelector('.zl');
+    const full=this._full(),span=full.to-full.from;
+    const cnt=Math.max(1,Math.round(r.to-r.from));
+    const start=Math.max(0,Math.round(r.from));
+    if(sl){sl.max=Math.max(0,Math.round(span-cnt));sl.value=start;}
+    if(lab){
+      const shown=Math.min(this._total,cnt);
+      lab.textContent=`显示 ${shown}/${this._total} 根${shown<this._total?'（'+fmt((start+1)/this._total*100,0)+'–'+fmt(Math.min(this._total,start+cnt)/this._total*100,0)+'%）':''}`;
+    }
+  }
+  /* 以可视窗口中心为锚缩放；dir>0 放大（根数变少 → K 线更大）。
+     跨度上限用 full.to-full.from，不再跟数据根数 n 比较，避免 rightOffset 导致卡死。 */
   zoom(dir){
-    const total=this.total();if(!total)return;
-    const cur=this.win||{start:0,count:total};
-    const cnt=dir>0?Math.max(8,Math.round(cur.count/1.6)):Math.min(total,Math.round(cur.count*1.6));
-    if(cnt>=total)this.win=null;
-    else{const right=cur.start+cur.count;this.win={start:Math.max(0,Math.min(total-cnt,right-cnt)),count:cnt};}
-    this.draw();
+    if(!this.chart||!this._total)return;
+    const ts=this.chart.timeScale(),r=ts.getVisibleLogicalRange();if(!r)return;
+    const full=this._full(),span=full.to-full.from;
+    // charts 内部可能返回负 from（leftOffset/fitContent 副作用），先夹到合法区间
+    const rf=Math.max(full.from,r.from),rt=Math.min(full.to,r.to);
+    const cnt=Math.max(8,rt-rf),anchor=(rf+rt)/2;
+    const nc=dir>0?Math.max(6,Math.round(cnt/1.6)):Math.min(span,Math.round(cnt*1.6));
+    if(nc>=span){this._applyRange(full);return;}
+    const from=Math.max(full.from,Math.min(full.to-nc,Math.round(anchor-nc/2)));
+    this._applyRange({from,to:from+nc});
+  }
+  reset(){
+    if(!this.chart||!this._total)return;
+    this._applyRange(this._full());
   }
   pan(v){
-    const total=this.total();if(!total||!this.win)return;
-    const cnt=this.win.count;
-    this.win={start:Math.max(0,Math.min(total-cnt,v)),count:cnt};
-    this.draw();
+    if(!this.chart||!this._total)return;
+    const ts=this.chart.timeScale(),r=ts.getVisibleLogicalRange();if(!r)return;
+    const full=this._full(),cnt=Math.max(8,Math.min(full.to,full.from+ (r.to-r.from))-full.from);
+    const from=Math.max(full.from,Math.min(full.to-cnt,v));
+    this._applyRange({from,to:from+cnt});
   }
-  _syncCtl(total,start,count){
-    this.ctl.classList.remove('hide');
-    const sl=this.ctl.querySelector('input[data-z="pan"]'),lab=this.ctl.querySelector('.zl');
-    sl.max=Math.max(0,total-count);sl.value=start;sl.disabled=total<=count;
-    lab.textContent=`显示 ${count}/${total} 根${count<total?'（'+fmt((start+1)/total*100,0)+'–'+fmt((start+count)/total*100,0)+'%）':''}`;
-  }
-  draw(){
-    const obj=this.obj;if(!obj)return;
-    const daily=this.mode==='daily';
-    const allDates=daily?obj.daily.dates:obj.monthly.ms.map(m=>m+'-01');
-    const allOhlc=daily?obj.daily.ohlc:obj.monthly.ohlc;
-    const allBars=daily?obj.daily.vol:obj.monthly.amt;
-    const total=allOhlc.length;if(!total)return;
-    let start=0,count=total;
-    if(this.win){count=Math.max(8,Math.min(total,this.win.count|0));start=Math.max(0,Math.min(total-count,this.win.start|0));this.win={start,count};}
-    const dates=allDates.slice(start,start+count),ohlc=allOhlc.slice(start,start+count),bars=allBars.slice(start,start+count);
-    /* 手机窄屏：拉高 viewBox（K线区/量区同比放大），显示高度随宽度按比例变高 */
-    const narrow=window.innerWidth<=560;
-    const W=800,PL=8,PR=narrow?46:58,PT=14,
-          KH=narrow?450:218,GAP=narrow?14:10,VH=narrow?130:64;
-    const H=PT+KH+GAP+VH+(narrow?32:34);
-    const IW=W-PL-PR,n=ohlc.length;
-    const FS=narrow?16:10,LSW=narrow?1.4:0.6,CSW=narrow?1.6:1;
-    const mas=daily?(obj.daily.ma||{}):(obj.monthly.ma||{});
-    const visMa=MA_DEF.filter(m=>this.maOn[m.k]&&mas[m.k]);
-    const hi=Math.max(...ohlc.map(o=>o[3])),lo=Math.min(...ohlc.map(o=>o[2]));
-    const maVals=visMa.flatMap(m=>mas[m.k].slice(start,start+count)).filter(v=>v!=null);
-    const yHi=maVals.length?Math.max(hi,...maVals):hi,yLo=maVals.length?Math.min(lo,...maVals):lo;
-    const pad=(yHi-yLo)*0.06||1,yMax=yHi+pad,yMin=yLo-pad;
-    const sy=v=>PT+KH-(v-yMin)/(yMax-yMin)*KH;
-    const cw=IW/n,bw=Math.max(1,Math.min(cw*0.62,narrow?42:28)),cx=i=>PL+cw*(i+0.5);
-    let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
-    for(let g=0;g<4;g++){const y=PT+KH*g/3;s+=`<line x1="${PL}" y1="${y}" x2="${PL+IW}" y2="${y}" stroke="${GRID}" stroke-width="${LSW}"/><text x="${PL+IW+4}" y="${y+4}" fill="${INK}" font-size="${FS}">${fmt(yMax-(yMax-yMin)*g/3,2)}</text>`;}
-    /* 均线折线（忽略 null，遇 null 断线） */
-    visMa.forEach(m=>{
-      const arr=mas[m.k].slice(start,start+count);let seg=[],paths=[];
-      arr.forEach((v,i)=>{if(v==null){if(seg.length>1)paths.push(seg);seg=[];}else seg.push(`${cx(i).toFixed(1)},${sy(v).toFixed(1)}`);});
-      if(seg.length>1)paths.push(seg);
-      paths.forEach(p=>{s+=`<polyline points="${p.join(' ')}" fill="none" stroke="${m.color}" stroke-width="${narrow?2.2:1.5}" opacity="0.92"/>`;});
-    });
-    ohlc.forEach((o,i)=>{const up=o[1]>=o[0],col=up?UP:DOWN,x=cx(i);s+=`<line x1="${x}" y1="${sy(o[3])}" x2="${x}" y2="${sy(o[2])}" stroke="${col}" stroke-width="${CSW}"/><rect x="${(x-bw/2).toFixed(1)}" y="${Math.min(sy(o[0]),sy(o[1])).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,Math.abs(sy(o[0])-sy(o[1]))).toFixed(1)}" fill="${up?col:'none'}" stroke="${col}" stroke-width="${CSW}"/>`;});
-    const vTop=PT+KH+GAP,vMax=Math.max(...bars)||1;
-    bars.forEach((b,i)=>{const up=ohlc[i][1]>=ohlc[i][0],h=b/vMax*VH;s+=`<rect x="${(cx(i)-bw/2).toFixed(1)}" y="${(vTop+VH-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${up?'rgba(245,34,45,.55)':'rgba(82,196,26,.55)'}"/>`;});
-    s+=`<line x1="${PL}" y1="${vTop+VH}" x2="${PL+IW}" y2="${vTop+VH}" stroke="${GRID}" stroke-width="${LSW}"/>`;
-    const nl=Math.min(narrow?4:6,n),lbl=[];for(let k=0;k<nl;k++)lbl.push(Math.round(k*(n-1)/(nl-1||1)));
-    lbl.forEach(i=>{s+=`<text x="${cx(i)}" y="${H-6}" fill="${INK}" font-size="${FS}" text-anchor="middle">${dates[i]}</text>`;});
-    s+='</svg>';this.box.innerHTML=s;
-    this._syncCtl(total,start,count);
+  dispose(){
+    if(this._ro)this._ro.disconnect();
+    if(this.chart)this.chart.remove();
   }
 }
