@@ -100,7 +100,7 @@ let M=null,view='pool',curLayer='__all',probeFilter='all',sortKey=null,sortDir=1
 /* 发布站用 sharecode 鉴权：相对路径 fetch 不带它会被 403，必须透传 */
 const SHARE=(new URLSearchParams(location.search)).get('sharecode')||'';
 /* 静态托管偶发半包/截断；force-cache 会把坏响应永久缓存 → no-store + 每次带 nonce 重试 + 内容校验 */
-const resUrl=(p,nonce)=>{const q=[];if(SHARE)q.push('sharecode='+encodeURIComponent(SHARE));if(nonce!=null)q.push('_r='+nonce);return q.length?p+(p.indexOf('?')>=0?'&':'?')+q.join('&'):p;};
+const resUrl=(p,nonce)=>{const q=[];if(SHARE){q.push('sharecode='+encodeURIComponent(SHARE));if(nonce!=null)q.push('_r='+nonce);}return q.length?p+(p.indexOf('?')>=0?'&':'?')+q.join('&'):p;};
 async function fetchJSON(path,validate,tries){
   tries=tries||6;let last;
   for(let i=0;i<tries;i++){
