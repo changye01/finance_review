@@ -157,6 +157,7 @@ async function loadData(){
     detailObj=obj;
     if(!chart)chart=new Chart(box,document.getElementById('zoomCtl'),document.getElementById('maLegend'));
     chart.setData(obj,mode);
+    drawMinute(obj);
     document.getElementById('detailNote').textContent=(mode==='daily'?NOTE_DAILY:NOTE_MONTH)+ZOOM_HINT;
   }catch(e){if(seq===loadSeq)box.innerHTML='<div class="loading">图表数据载入失败：'+esc(e.message)+'</div>';}
 }
@@ -178,3 +179,67 @@ fetchJSON('./meta.json',d=>!!(d&&d.stocks&&d.shards)).then(d=>{
   renderHead(x);renderTimeline(x);bindNav();loadData();
   if(x.date)loadTimeline();
 }).catch(e=>{document.getElementById('dName').textContent='数据载入失败：'+e.message;});
+
+/* ── 当日分时（canvas，2026-11-24 新增）────────────────────────────
+   数据来自 qm_webgen.py 的 load_minute()（东财 trends2，1 分钟）；
+   校验过 times[0] 的日期 == asof，错日不画。 */
+function drawMinute(obj){
+  const cv=document.getElementById('mnCanvas'), hint=document.getElementById('mnHint');
+  if(!cv) return;
+  const mi=obj&&obj.minute;
+  if(!mi||!mi.times||!mi.times.length){
+    if(hint)hint.textContent='无当日分时数据';
+    cv.style.height='0'; return;
+  }
+  const cs=getComputedStyle(document.body);
+  const V=k=>((cs.getPropertyValue(k)||'').trim());
+  const ink=V('--ink3')||'#8b9bb4', line=V('--line')||'#232c3d';
+  const UP='#f5222d', DOWN='#52c41a', AVG='#e8a33d';
+  const W=cv.clientWidth||900, H=window.innerWidth<=560?260:340;
+  const dpr=window.devicePixelRatio||1;
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); cv.style.height=H+'px';
+  const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const padL=6,padR=58,padT=12,gap=16,subH=64,axisH=20;
+  const mainH=Math.max(60,H-padT-subH-gap-axisH);
+  const n=mi.times.length, pre=mi.pre_close||null;
+  let lo=Infinity,hi=-Infinity;
+  for(const v of mi.price){ if(v<lo)lo=v; if(v>hi)hi=v; }
+  for(const v of mi.avg){ if(v!=null){ if(v<lo)lo=v; if(v>hi)hi=v; } }
+  if(pre){ lo=Math.min(lo,pre); hi=Math.max(hi,pre); }
+  if(!isFinite(lo)||!isFinite(hi)){ if(hint)hint.textContent='分时数据异常'; return; }
+  const pad=(hi-lo)*0.1||0.05; lo-=pad; hi+=pad;
+  const X=i=>padL+(W-padL-padR)*(n<=1?0:i/(n-1));
+  const Y=v=>padT+mainH*(1-(v-lo)/(hi-lo));
+  g.strokeStyle=line; g.lineWidth=1;
+  for(let k=0;k<=4;k++){ const yy=padT+mainH*k/4; g.beginPath(); g.moveTo(padL,yy); g.lineTo(W-padR,yy); g.stroke(); }
+  if(pre){ g.save(); g.setLineDash([4,4]); g.strokeStyle='#5a6b8c';
+           const yy=Y(pre); g.beginPath(); g.moveTo(padL,yy); g.lineTo(W-padR,yy); g.stroke(); g.restore(); }
+  const last=mi.price[n-1], up=pre?last>=pre:true;
+  g.strokeStyle=up?UP:DOWN; g.lineWidth=1.4; g.beginPath();
+  mi.price.forEach((v,i)=>{ i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)); }); g.stroke();
+  g.strokeStyle=AVG; g.lineWidth=1; g.beginPath(); let started=false;
+  mi.avg.forEach((v,i)=>{ if(v==null)return; started?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)); started=true; }); g.stroke();
+  const vTop=padT+mainH+gap;
+  let vmax=0; for(const v of mi.vol) if(v>vmax)vmax=v;
+  const bw=Math.max(1,(W-padL-padR)/n-0.6);
+  if(vmax>0) for(let i=0;i<n;i++){
+    const h=subH*(mi.vol[i]/vmax);
+    g.fillStyle=(i?(mi.price[i]>=mi.price[i-1]):up)?'rgba(245,34,45,.55)':'rgba(82,196,26,.55)';
+    g.fillRect(X(i)-bw/2,vTop+subH-h,bw,h);
+  }
+  g.fillStyle=ink; g.font='11px ui-monospace,Menlo,monospace'; g.textAlign='left';
+  for(let k=0;k<=4;k++){ const v=hi-(hi-lo)*k/4; g.fillText(v.toFixed(2),W-padR+6,padT+mainH*k/4+4); }
+  g.textAlign='center';
+  ['09:30','10:30','11:30','14:00','15:00'].forEach((m,idx)=>{
+    let i=mi.times.findIndex(t=>t.slice(11,16)===m);
+    if(i<0&&idx===0)i=0;          // 数据从 09:31 起，首刻度用第一个点
+    if(i<0)return;
+    g.strokeStyle=line; g.beginPath(); g.moveTo(X(i),padT); g.lineTo(X(i),vTop+subH); g.stroke();
+    g.fillStyle=ink; g.fillText(m,X(i),H-6);
+  });
+  if(hint){
+    const chg=pre?((last/pre-1)*100):0;
+    hint.textContent=`昨收 ${pre??'-'} · 现价 ${last} · ${chg>=0?'+':''}${chg.toFixed(2)}% · ${n} 点`;
+  }
+}
+window.addEventListener('resize',()=>{ if(detailObj) drawMinute(detailObj); });

@@ -51,6 +51,15 @@ body{touch-action:manipulation}
       <div id="dTimeline"></div>
     </div>
   </div>
+  <div class="panel" id="mnPanel">
+    <div class="panel-head">
+      <span class="t">当日分时</span>
+      <span class="mn-hint" id="mnHint"></span>
+    </div>
+    <div style="padding:10px 14px 14px">
+      <canvas id="mnCanvas" class="mn-canvas"></canvas>
+    </div>
+  </div>
 </div>
 <script src="./vendor/lightweight-charts.standalone.js"></script>
 <script type="module" src="./detail.js"></script>

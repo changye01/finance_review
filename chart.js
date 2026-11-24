@@ -211,9 +211,9 @@ export class Chart{
       for(let i=0;i<n;i++){const v=arr[i];if(v!=null)pts.push({time:dates[i],value:v});}
       this.maSeries[m.k].setData(pts);
     });
-    /* 默认展示最近 ~120 根（手机 ~70），rAF 延迟设置（同帧会被内部 fitContent 覆盖） */
+    /* 默认展示最近 250 根（手机 120；2026-11-24 由 120/70 上调，用户「120 根不够」），rAF 延迟设置 */
     this._total=n;
-    const def=window.innerWidth<=560?70:120,from=Math.max(0,n-def),to=this._full().to;
+    const def=window.innerWidth<=560?120:250,from=Math.max(0,n-def),to=this._full().to;
     requestAnimationFrame(()=>this._applyRange({from,to}));
   }
   dispose(){
