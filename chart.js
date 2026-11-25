@@ -246,9 +246,20 @@ export class Chart{
     /* 默认展示最近 250 根（手机 120；2026-11-24 由 120/70 上调，用户「120 根不够」），rAF 延迟设置 */
     this._total=n;
     const def=_VW<=560?50:(_VW<=1100?120:250),from=Math.max(0,n-def),to=this._full().to;  // 手机50 / 平板120 / 桌面250（2026-11-25 用户定），可双指放大
-    requestAnimationFrame(()=>this._applyRange({from,to}));
+    /* 2026-11-26 修：单帧 rAF 偶发被图表初始化/resize 覆盖，导致部分标的（如今日启动探针成飞集成）
+       可视区停在 n-1、没有 rightOffset 空白，最新 K 线被挤到右边缘、视觉上像停在 11-24。
+       改同步设置 + rAF 补救：setData 后立即定位到最新；下一帧校验，若被初始化覆盖再设一次。
+       绑定 _seekGen 防止切票后旧回调回写。 */
+    const gen=(this._seekGen=(this._seekGen||0)+1);
+    this._applyRange({from,to});
+    requestAnimationFrame(()=>{
+      if(gen!==this._seekGen||!this.chart)return;
+      const r=this.chart.timeScale().visibleLogicalRange();
+      if(!r||r.to<to-0.5)this._applyRange({from,to});
+    });
   }
   dispose(){
+    this._seekGen=(this._seekGen||0)+1;   // 作废未完成的自动定位回调
     if(this._labelRAF)cancelAnimationFrame(this._labelRAF);
     if(this._ro)this._ro.disconnect();
     if(this._touch){
