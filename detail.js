@@ -70,7 +70,7 @@ function findStock(){
   let rows=orderedList(M,listCtx);
   let i=rows.findIndex(x=>(x.sid||x.code)===sid);
   if(i<0){ // 上下文与标的不符（如直接改 URL）：回退到全集顺序翻页
-    rows=(M.stocks||[]).concat(M.probe||[]);
+    rows=(M.stocks||[]).concat(M.four||[],M.probe||[]);
     i=rows.findIndex(x=>(x.sid||x.code)===sid);
     if(i<0)return null;
   }
@@ -120,12 +120,14 @@ function bindNav(){
   });
 }
 function renderHead(x){
-  const isP=!!x.date,ind=x.ind||{};
+  const isP=!!x.date,isF=!!x.miss,ind=x.ind||{};
   document.title=`${x.name} · 量化看板`;
   document.getElementById('dName').innerHTML=`${esc(x.name)}<span class="code">${esc(x.code)}</span>`;
   let meta;
   if(isP){
     meta=`t_45 探针 · 信号日 ${esc(x.date||'—')} · 距今 ${x.dist==null?'—':x.dist} 日 · 涨幅 <span class="${cls(x.chg)}">${sgn(x.chg)}%</span> · 放大 ${fmt(x.mult,1)}× · 换手 ${fmt(x.turn,1)}%<br>${esc(x.band||'')} · ${esc(x.state||'')}`;
+  }else if(isF){
+    meta=`4 分速览 · 缺 ${esc(x.miss)} · 窗口涨幅 <span class="${cls(x.win_gain)}">${sgn(x.win_gain)}%</span> · 放大 ${fmt(x.mult,1)}× · 周转 ${fmt(x.rounds,2)} 次 · 振幅 ${fmt(x.amp_mult,2)}×<br>日均换手 ${fmt(x.turn,1)}% · 最大回撤 ${sgn(x.drawdown)}% · 主升 ${esc(x.seg||'—')}${x.fresh?' · 🆕首达 4 分':''}`;
   }else{
     meta=`${esc(x.layer||'')} · 涨跌 <span class="${cls(x.chg)}">${sgn(x.chg)}%</span> · 换手 ${fmt(x.turn,1)}% · ÷阈值 ${fmt(x.thr,1)}× · 距高 ${sgn(x.dist_high)}% · 回撤 ${sgn(x.drawdown)}% · 额 ${fmt(x.amt)}亿`+(x.concept?`<br>${esc(x.concept)}`:'');
   }
@@ -138,6 +140,10 @@ function renderHead(x){
   const dd=document.getElementById('dDesc');
   if(isP){
     dd.innerHTML=`<div class="dd-row"><b>探针口径</b><span>t_45 启动探针 · 45 日窗 · 严格 T+5；命中仅代表「从静默转放量」形态，证据弱于五条打分，不构成可买判断。${esc(x.state||'')} ${esc(x.band||'')}</span></div>`;
+  }else if(isF){
+    const NM={'①':'成交额放大 <6×','②':'筹码周转 <3 次','③':'振幅 <1.7×','④':'主升段不在第 1/2 段','⑤':'上影≥下影不成立'};
+    dd.innerHTML=`<div class="dd-row"><b>4 分口径</b><span>五条打分过四条，缺 ${esc(x.miss)}＝${esc(NM[x.miss]||'待核')}。4 分不分层、不进 A/B/C 池、不与 5 分合并计数；首达 4 分≠首达 5 分，不按 5 分首达的收益结论外推。</span></div>`
+      +`<div class="dd-nums"><span>窗口涨幅 <b>${fmt(x.win_gain,1)}%</b></span><span>周转 <b>${fmt(x.rounds,2)} 次</b></span><span>放大 <b>${fmt(x.mult,1)}×</b></span><span>振幅 <b>${fmt(x.amp_mult,2)}×</b></span><span>上-下影 <b>${fmt(x.up_sh,2)}</b></span></div>`;
   }else{
     const rows=[];
     if(x.action)rows.push(`<div class="dd-row"><b>操作建议</b><span>${esc(x.action)}</span></div>`);

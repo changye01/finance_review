@@ -11,6 +11,7 @@ h1 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:v
 .tab:hover{border-color:#3d4a63;color:var(--ink)}
 .tab.on{background:var(--blue);border-color:var(--blue);color:#fff}
 .tab.probe.on{background:var(--amber);border-color:var(--amber);color:#1a1200}
+.tab.four.on{background:#9254de;border-color:#9254de;color:#fff}
 .tab .n{background:rgba(255,255,255,.12);padding:1px 6px;border-radius:5px;font-size:11px}
 .section-tip{color:var(--ink3);font-size:11.5px;margin:0 0 13px 2px;line-height:1.7}
 .layout{display:grid;grid-template-columns:minmax(560px,1.3fr) minmax(480px,1fr);gap:16px;align-items:start}
@@ -35,6 +36,7 @@ table.lst td.mono{font-family:ui-monospace,Menlo,monospace}
 .badge{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10.5px;font-weight:600}
 .badge.A{background:rgba(245,34,45,.16);color:#ff6b6b}.badge.B{background:rgba(250,173,20,.15);color:#ffc53d}.badge.C{background:rgba(22,119,255,.14);color:#69b1ff}.badge.other{background:rgba(123,138,165,.16);color:var(--ink2)}
 .chip-new{background:var(--up);color:#fff;font-size:9.5px;padding:1px 4px;border-radius:4px;margin-left:4px;vertical-align:middle}
+.miss-tag{display:inline-block;background:rgba(250,173,20,.14);color:var(--amber);border:1px solid rgba(250,173,20,.35);font-size:10.5px;padding:1px 5px;border-radius:5px;white-space:nowrap}
 .detail{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px 20px}
 .detail .panel-head{padding:0 0 11px;margin-bottom:2px}
 .ov-body{max-height:calc(100vh - 260px);min-height:220px;overflow:auto;padding:4px 2px 0}

@@ -9,6 +9,10 @@ export function orderedList(M, ctx){
     if(probeFilter==='fresh')a=a.filter(x=>x.fresh);
     else if(probeFilter==='green')a=a.filter(x=>x.band&&x.band.indexOf('🟢')>=0);
     else if(probeFilter==='back')a=a.filter(x=>x.band&&x.band.indexOf('⚪')>=0);
+  }else if(view==='four'){
+    a=(M.four||[]).slice();
+    if(probeFilter==='fresh')a=a.filter(x=>x.fresh);
+    else if(probeFilter&&probeFilter.indexOf('miss')===0)a=a.filter(x=>x.miss===probeFilter.slice(4));
   }else{
     a=(M.stocks||[]).slice();
     if(layer!=='__all')a=a.filter(x=>x.layer===layer);
