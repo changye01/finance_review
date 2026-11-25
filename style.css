@@ -128,7 +128,7 @@ table.lst td.mono{font-family:ui-monospace,Menlo,monospace}
 .mn-canvas{width:100%;height:340px;display:block}
 @media(max-width:560px){.mn-canvas{height:260px}}
 
-/* ── 复盘文章 tab（2026-11-25）── */
+/* ── 文档 tab：复盘文章 / think（2026-11-25）── */
 .article-wrap{max-width:1080px;margin:0 auto;padding:4px 0 40px}
 .md{font-size:14px;line-height:1.85;color:var(--ink2)}
 .md h1{font-size:22px;color:var(--ink);margin:22px 0 12px;font-weight:600;padding-bottom:8px;border-bottom:1px solid var(--line)}
@@ -150,7 +150,12 @@ table.lst td.mono{font-family:ui-monospace,Menlo,monospace}
 .md th{background:var(--surface2);color:var(--ink);font-weight:600}
 .md tr:nth-child(even) td{background:rgba(255,255,255,.015)}
 .md hr{border:none;border-top:1px solid var(--line);margin:22px 0}
+/* think：原样随手记，按行保留缩进与换行 */
+.think-md{font-size:13.5px;line-height:1.75}
+.think-line{white-space:pre-wrap;word-break:break-word;min-height:1em}
+.think-day{display:inline-block;margin:18px 0 5px;padding:3px 10px;border-left:3px solid var(--blue);background:var(--surface2);color:var(--ink);font-family:ui-monospace,Menlo,monospace;font-weight:600}
 @media(max-width:560px){
+  .think-md{font-size:12.5px;line-height:1.7}
   .md{font-size:13px;line-height:1.75}
   .md h1{font-size:18px}.md h2{font-size:16px}.md h3{font-size:14px}
   .md th,.md td{padding:5px 7px;font-size:11.5px}
