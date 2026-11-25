@@ -203,7 +203,7 @@ function drawMinute(obj){
   const V=k=>((cs.getPropertyValue(k)||'').trim());
   const ink=V('--ink3')||'#8b9bb4', line=V('--line')||'#232c3d';
   const UP='#f5222d', DOWN='#52c41a', AVG='#e8a33d';
-  const W=cv.clientWidth||900, H=window.innerWidth<=560?260:340;
+  const W=cv.clientWidth||900, H=window.innerWidth<=560?300:340;
   const dpr=window.devicePixelRatio||1;
   cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); cv.style.height=H+'px';
   const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);

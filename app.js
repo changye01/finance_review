@@ -87,10 +87,23 @@ function boot(){
   let th=`<div class="tab on" data-v="pool" data-l="__all">全部 <span class="n">${M.stocks.length}</span></div>`;
   ORDER.forEach(l=>{if(counts[l])th+=`<div class="tab" data-v="pool" data-l="${l}">${LAYER_NAME[l]} <span class="n">${counts[l]}</span></div>`;});
   th+=`<div class="tab probe" data-v="probe">t_45 探针 <span class="n">${(M.probe||[]).length}</span></div>`;
+  th+=`<div class="tab article" data-v="article">复盘文章</div>`;
   const tabs=document.getElementById('tabs');tabs.innerHTML=th;
-  tabs.addEventListener('click',e=>{const t=e.target.closest('.tab');if(!t)return;tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');view=t.dataset.v;curLayer=t.dataset.l||'__all';sortKey=null;sortDir=1;setupView();renderList();});
+  tabs.addEventListener('click',e=>{
+    const t=e.target.closest('.tab');if(!t)return;
+    tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
+    view=t.dataset.v;curLayer=t.dataset.l||'__all';sortKey=null;sortDir=1;
+    const art=document.getElementById('articleWrap'),lay=document.querySelector('.layout');
+    if(view==='article'){ lay.classList.add('hide'); art.classList.remove('hide'); showArticle(); return; }
+    lay.classList.remove('hide'); art.classList.add('hide');
+    setupView();renderList();
+  });
   const qi=document.getElementById('q');
   qi.addEventListener('input',()=>{query=qi.value;renderList();});
+  // URL 参数直进文章视图（?v=article），便于分享与测试
+  if(new URLSearchParams(location.search).get('v')==='article'){
+    const at=tabs.querySelector('.tab.article'); if(at) setTimeout(()=>at.click(),0);
+  }
   document.getElementById('listBody').addEventListener('click',e=>{
     const tr=e.target.closest('tr[data-id]');if(!tr)return;
     const c=ctx();
@@ -116,3 +129,29 @@ function boot(){
   }).catch(()=>{});
 }
 fetchJSON('./meta.json',d=>!!(d&&d.stocks&&d.shards)).then(d=>{M=d;boot();}).catch(e=>{document.getElementById('subline').textContent='数据载入失败：'+e.message+'　请刷新页面重试。';});
+
+/* ── 复盘文章 tab（2026-11-25）─────────────────────────────
+   构建时 qm_webgen.py 把当天的复盘 MD 复制到 articles/latest.md，
+   这里用 marked 渲染。懒加载：首次点 tab 才下载。 */
+async function showArticle(){
+  const box=document.getElementById('articleWrap');
+  if(!box) return;
+  if(box.dataset.loaded) return;
+  box.innerHTML='<div class="loading">文章载入中…</div>';
+  try{
+    const r=await fetch('./articles/latest.md?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const md=await r.text();
+    if(!window.marked) throw new Error('marked 未加载');
+    box.innerHTML='<div class="md">'+window.marked.parse(md)+'</div>';
+    box.dataset.loaded='1';
+    // 表格外包一层，窄屏可横向滚动
+    box.querySelectorAll('table').forEach(t=>{
+      if(t.parentElement.classList.contains('md-tw'))return;
+      const w=document.createElement('div');w.className='md-tw';
+      t.parentNode.insertBefore(w,t);w.appendChild(t);
+    });
+  }catch(e){
+    box.innerHTML='<div class="loading">文章载入失败：'+esc(e.message)+'</div>';
+  }
+}
