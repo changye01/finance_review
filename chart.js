@@ -17,10 +17,15 @@ export const MA_DEF=[{k:'ma5',label:'MA5',color:'#5b8def'},
 const UP='#f5222d',DOWN='#52c41a',INK='#aab6cc',GRID='#2b3548',BG='#151d2e';
 const RIGHT_OFF=8, MIN_SPAN=10;              // rps: et=8, 最小可视跨度 10
 const _VW=(typeof window!=='undefined')?window.innerWidth:1300;
+const _VH=(typeof window!=='undefined')?window.innerHeight:900;
 const IS_NARROW=_VW<=560;
 const MIN_H=180, MAX_H=1800;
-// 2026-11-24 分三档：手机 720 太占屏、iPad 用桌面 520 偏小
-const DEF_H = _VW<=560 ? 540 : (_VW<=1100 ? 680 : 520);
+// 2026-11-25 改为**视口自适应**（参考 rps-review.com 的 useViewportChartHeight 思路）：
+// 固定 px 在小屏手机上会占满、在大屏上又偏小，按屏高比例算更稳。
+// 手机 0.58×屏高（夹 420–600）；平板 0.62（夹 520–720）；桌面固定 520。
+const DEF_H = _VW<=560 ? Math.round(Math.min(Math.max(_VH*0.58, 420), 600))
+           : _VW<=1100 ? Math.round(Math.min(Math.max(_VH*0.62, 520), 720))
+           : 520;
 const HS_KEY='lwc_chart_height';
 
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
