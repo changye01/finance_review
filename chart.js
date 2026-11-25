@@ -244,7 +244,7 @@ export class Chart{
     });
     /* 默认展示最近 250 根（手机 120；2026-11-24 由 120/70 上调，用户「120 根不够」），rAF 延迟设置 */
     this._total=n;
-    const def=IS_NARROW?50:250,from=Math.max(0,n-def),to=this._full().to;  // 手机 50 根（每根约8px，2026-11-25 用户定），可双指放大
+    const def=_VW<=560?50:(_VW<=1100?120:250),from=Math.max(0,n-def),to=this._full().to;  // 手机50 / 平板120 / 桌面250（2026-11-25 用户定），可双指放大
     requestAnimationFrame(()=>this._applyRange({from,to}));
   }
   dispose(){
