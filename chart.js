@@ -254,7 +254,7 @@ export class Chart{
     this._applyRange({from,to});
     requestAnimationFrame(()=>{
       if(gen!==this._seekGen||!this.chart)return;
-      const r=this.chart.timeScale().visibleLogicalRange();
+      const r=this.chart.timeScale().getVisibleLogicalRange();
       if(!r||r.to<to-0.5)this._applyRange({from,to});
     });
   }
