@@ -1,0 +1,60 @@
+# 2026-11-24
+
+## 量化标的看板：五项优化全部落地
+
+项目性质：纯前端静态站点（`index.html` 列表 + `detail.html` 独立详情 + TradingView lightweight-charts v5），数据来自 `meta.json`（21 主池 + 226 探针）与 `series/` 112 分片。
+
+审计结论：数据层全绿（247 标的哈希寻址 0 失败、数组/MA 长度 0 错位、0 孤儿对象），问题集中在功能层。本次完成五项改动：
+
+1. **恢复研判字段展示**：拆页时丢失的 `action` / `shape` / `win_gain` / `rounds` / `seg` 在详情页 `.detail-desc` 区块重新渲染；`detail.js` 加 `esc()` 做 HTML 转义。探针侧补口径说明。
+2. **翻页 SPA 化**：`goSid()` 从 `location.href` 整页跳转改为 History API + `chart.setData()` 复用 chart 实例；内存分片缓存 + `loadSeq` 序号守卫防快速连按的异步竞态；支持 popstate 前进后退。避免每次重下 60KB meta 和重建双图表。
+3. **首页右栏利用**：空提示改为「当日概览」（分层分布条形图可点击切 tab + 分层口径 + 探针计数）。列表加名称/代码搜索框，过滤下沉到共享 `orderedList()` 的 `query` 参数，保证 index 与 detail 翻页口径一致；搜索词透传到详情页 URL。
+4. **分片缓存**：`util.js` 新增 `fetchShard(path, version, validate)`，以 `meta.generated_at` 做版本失效，localStorage 最多 24 片（FIFO），保留原有重试与内容校验。
+5. **代码卫生**：删除 `chart.js` 中无 UI 对应的 `zoom/pan/reset/_bindCtl` 死代码与 range input 写入；`localStorage.getItem` 加 try/catch；`app.js` 修正写死的「已重试6次」文案；清理 style.css 单文件时代遗留样式。
+
+验证：5 个 JS 文件语法检查通过；11 个静态资源 HTTP 200；搜索过滤/排序逻辑用 Node 直接跑 `orderedList()` 验证（含无命中分支）；Chrome headless 实测首页渲染 6 条分层概览、列表正常，详情页研判字段（含 `>` 转义）、双 K 线图、均线图例均正常。
+
+本地预览：`python3 -m http.server 8765 --bind 127.0.0.1`（ES Module 需 HTTP，不能 file:// 直开）。
+
+## 第二轮：t_45 全窗 + 状态时间轴 + 分层迁移视图
+
+**湖故障根因（重要）**：cnequity 0.24→0.25 升级后（2026-11-24 凌晨 migrate 已 applied），数据从旧 `data/meta/revisions/data/` 迁到新 `data/lake/data/main/`。`qm_webgen.py` 旧 `LAKE=cnequity.duckdb` 直连的视图指向空目录 → 全部查询报 `No files found`。**修法**：改用官方 `cnequity.query.views.views_connection(cfg)` 动态注册 dataset 视图（配 `lake_read` 读锁 + atexit 释放），SQL 一行未改。新布局三表全可查：daily_bars / daily_bars_adj / share_structure。
+
+**数据层结果**：探针从 226（30 自然日）扩到 **506 条 t_45 全窗**（≤45 交易日，2026-09-14→11-23），全部有真实 K 线（分片 112→236）。`qm_webgen.py` 的 `--probe-recent-days` 默认改为 None＝全窗。
+
+**两个新视图**（数据来自真实历史探针产物，不编造）：
+- **首页「迁移」tab**（右栏 概览/迁移 切换，`?ov=hist` 可直接进）：8 个快照日（11-12→11-23）的探针 A 率轨迹。数据 `snapshots.json`。分层 A/B/C 池历史无存档，只显示当日分层 + 明确口径边界，不画迁移曲线。
+- **详情页「标的状态时间轴」**（仅探针标的）：逐快照 state/band 迁移，B→A 转正当日高亮。数据 `signal_timeline.json`（839 信号）。主池 A/B/C 不显示（无历史分层快照）。
+
+**新增脚本**（`finance/scripts/`）：
+- `qm_web_timeline.py`：后处理，从 `qm_probe_review_*.json` 历史产物构建 snapshots / timeline，纯本地不碰湖。
+- `qm_web_build.sh`：**一键重建 = webgen + timeline**，两步缺一不可（只跑 webgen 新视图会无数据）。用法 `/bin/zsh scripts/qm_web_build.sh <date> <site-dir>`。
+
+**⚠️ 关键坑**：`qm_webgen.py` 每次重跑会用 `finance/scripts/templates/qm_board/` 覆盖站点 8 个前端文件。第一轮优化 + 本轮新视图都已**同步回该模板目录**，否则重跑即丢。以后改前端必须同时改站点 + 模板两处。
+
+验证：一键脚本端到端跑通；重跑后前端新功能 intact；Chrome headless：迁移 8 行、时间轴 8 节点含 1 处转正标记、K线 14 canvas 全部正常。
+
+## 收尾：finance 仓库清空看板相关文件
+
+用户裁决「finance 下面关于这个看板的删掉了」，选「全部看板文件」+「新提交记录删除（保留历史）」。已删：
+- `qm_webgen.py` / `qm_web_timeline.py` / `qm_web_build.sh`
+- `templates/qm_board/`（8 模板）、`qm_board_svg.html`、`qm_board_template.html`（后两个未跟踪，删后不可恢复）
+- `out/qm_web_data_20261123.json` 数据包
+
+finance 提交 `ffa35d0`（11 文件 1581 行删除），前一笔 `32fda74` 保留在历史中可追溯。**看板站点 finance_review 完全独立自包含，不受影响**（236 分片 + 两个时间轴 json 都在）。
+
+⚠️ 后果：看板生成管线已从 finance 移除，以后要重建数据须重新写生成脚本（历史见 32fda74）。探针研究产物 `qm_probe_review_*.json` 与复盘共用脚本均未动。
+
+**补充（用户提醒后删）**：`finance/量化看板/` 是上一轮初版的完整旧副本（112 分片 / 226 探针 / meta 13:30 生成，无 t_45、无时间轴新视图），未被 git 跟踪。用户明确「已经用 finance_review 来做量化看板」，已整目录删除（123 文件、3MB，未进版本库不可恢复）。复查 finance 下已无任何看板相关残留；finance_review 站点文件与 236 分片完好。→ **量化看板唯一权威位置 = finance_review，finance 下不再保留任何看板副本或生成脚本。**
+
+## 收尾二：看板生成管线固化为 skill `qm-board-build`
+
+用户裁决「按量化复盘生成看板可以生一个 skill」，选**独立新 skill** + **脚本打包进 skill**（不并入 quant-model-review，不回写 finance）。
+
+- 位置：`~/.workbuddy/skills/qm-board-build/`（用户级）。结构：`SKILL.md` + `scripts/`（从 finance git `32fda74` 原样恢复 qm_webgen.py 578 行 / qm_web_timeline.py 176 行 / qm_web_build.sh 25 行）+ `assets/qm_board/`（8 前端模板）+ `references/`（数据链路与口径.md、踩坑与恢复.md）。
+- **路径自包含改造**：脚本新增 `FINANCE_ROOT`（环境变量可覆盖，默认 finance 仓库）指向复盘 MD + 探针产物；`SKILL_ROOT` 定位 `assets/qm_board/` 模板；`TPL_DIR` 替代原硬编码 `scripts/templates/qm_board`。业务逻辑一行未改。
+- 恢复前逐一 sha256 核对 `assets/qm_board/` 8 文件与站点当前文件**一致**（含前两轮全部优化），避免重建覆盖丢功能。
+- SKILL.md 写死 8 条硬约束（两步缺一不可 / DuckLake 0.25 视图层 / 固定 venv 解释器 / 前端改两处 / 不编数据 / 不选股不判断 / HTTP 预览 / 路径可覆盖）+ 前置自检 + 验收清单。
+- 验证：两 py 编译通过、sh 语法通过、skill 官方校验 `Skill is valid!`；路径解析实测全对；`qm_web_timeline.py` 在临时目录纯本地实跑复现 506 探针 / 8 快照 / 839 信号，与站点基线一致。
+- 以后重建看板：`/bin/zsh ~/.workbuddy/skills/qm-board-build/scripts/qm_web_build.sh <交易日> <site-dir>`。**改前端仍须同时改站点 + skill 模板两处**（新约束：第三处＝本 skill assets）。
+- **两套 skill 目录同步**（用户 16:30「同步进 workbuddy-ai」）：已 cp 整套到 `~/.workbuddy-ai/skills/qm-board-build/`（14 文件，diff -rq 完全一致，官方校验 valid）；清理了两边的 `__pycache__` 临时产物。两套独立目录（不同 inode、不同用户 id），按 11-24 既有约定，以后这个 skill 的任何改动必须两边同步，换客户端才不回退。
