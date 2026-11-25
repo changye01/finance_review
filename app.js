@@ -7,7 +7,7 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const LAYER_NAME={A:'A · 可用',B:'B · 观察',C:'C · 不做',恢复观察:'恢复观察',掉出预筛:'掉出预筛','4分回榜':'4分回榜'};
 const LAYER_TIP={A:'四条准入全过：5分 / 回撤<30% / 周转≥2× / 距高<15%',B:'5分但准入未全过，或成立但缺第二日读数；连续两日成立才升A',C:'回撤>30% 一律留C，不因单日反弹或涨停升级',恢复观察:'结束判定被推翻，只核周转能否回2×，不升不降',掉出预筛:'上期在池、本期未过门槛，只留读数不参与分层','4分回榜':'重回预筛但未进5分，不参与分层'};
 const PROBE_TIP='v5-noqx 启动探针 · 45日窗 · 严格T+5 · 固定只显示信号日在最近一个月内的标的。命中＝「从静默转放量」的形态候选，证据弱于五条打分，不表示可买、不是量化主控标的。⚠️「⚪已过参与窗口」仅作复盘。点标的在新页看日线，可切月线。';
-const FOUR_TIP='4 分票＝五条打分缺一条，是「差一条就够」的观察池，不是可买名单：不分层、不进 A/B/C 池、不与 5 分合并计数。🆕首达按今天之前最近一期扫描产物比对；「缺」列编号＝①成交额放大<6× ②筹码周转<3次 ③振幅<1.7× ④主升段不在第1/2段 ⑤上影≥下影不成立。首达 4 分≠首达 5 分，不按 5 分的收益结论外推。';
+const FOUR_TIP='4 分票＝五条打分缺一条，是「差一条就够」的观察池，不是可买名单：不分层、不进 A/B/C 池、不与 5 分合并计数。🆕首达按今天之前最近一期扫描产物比对；「缺」列编号＝①成交额放大<6× ②筹码周转<3次 ③振幅<1.7× ④主升段不在第1/2段 ⑤上影≥下影不成立。首达 4 分≠首达 5 分，不按 5 分的收益结论外推。∩探针＝该票同时在 t_45 探针 T 表；两者共用同一根启动 K 线，是同源标注、不是两个独立证据的互相确认。';
 const MISS_NAME={'①':'①放大','②':'②周转','③':'③振幅','④':'④主升段','⑤':'⑤上影'};
 const COLS={pool:[{k:'layer',t:'层',f:0},{k:'name',t:'标的',f:0},{k:'chg',t:'涨跌',f:1},{k:'turn',t:'换手',f:1},{k:'thr',t:'÷阈值',f:1},{k:'dist_high',t:'距高',f:1},{k:'drawdown',t:'回撤',f:1},{k:'amt',t:'额',f:1}],four:[{k:'fresh',t:'首达',f:0},{k:'name',t:'标的',f:0},{k:'miss',t:'缺',f:0},{k:'win_gain',t:'窗口涨幅',f:1},{k:'mult',t:'放大',f:1},{k:'rounds',t:'周转',f:1},{k:'amp_mult',t:'振幅',f:1},{k:'turn',t:'换手',f:1},{k:'drawdown',t:'回撤',f:1}],probe:[{k:'dist',t:'距今',f:0},{k:'name',t:'标的',f:0},{k:'date',t:'信号日',f:0},{k:'chg',t:'涨幅',f:1},{k:'mult',t:'放大',f:1},{k:'turn',t:'换手',f:1},{k:'band',t:'窗口',f:0},{k:'state',t:'状态',f:0}]};
 const ORDER=['A','B','C','恢复观察','掉出预筛','4分回榜'];
@@ -20,8 +20,13 @@ function dataset(){return orderedList(M,ctx());}
 function cell(x,c){
   const v=x[c.k],isF=String(x.sid||'').startsWith('f_');
   if(c.k==='name'){
-    const b=isF?'<span class="badge other">4分</span> ':(x.layer?`<span class="badge ${['A','B','C'].includes(x.layer)?x.layer:'other'}">${x.layer}</span> `:'');
-    return `${b}${x.name}<br><span style="color:var(--ink3);font-size:10px">${x.code}</span>`;
+    let b=isF?'<span class="badge other">4分</span> ':(x.layer?`<span class="badge ${['A','B','C'].includes(x.layer)?x.layer:'other'}">${x.layer}</span> `:'');
+    let sg='';
+    if(isF&&x.probeHit){
+      sg=(x.probeSignals||[]).map(q=>q.date).filter(Boolean).join('、');
+      b+='<span class="chip-probe" title="同时在 t_45 探针 T 表；同一根启动K线，非独立证据">∩探针</span> ';
+    }
+    return `${b}${x.name}<br><span style="color:var(--ink3);font-size:10px">${x.code}${sg?' · 探针 '+esc(sg):''}</span>`;
   }
   if(c.k==='fresh')return v?'<span class="chip-new">🆕</span>':'';
   if(c.k==='miss')return v?`<span class="miss-tag" title="${esc(MISS_NAME[v]||v)}">缺 ${esc(v)}</span>`:'—';
@@ -50,7 +55,7 @@ function setupView(){
   const isP=view==='probe',isF=view==='four',pm=M.probe_meta||{};
   const fs=document.getElementById('filters');
   const f=isP?[['all','全部'],['fresh','🆕新命中'],['green','🟢当期窗口'],['back','⚪仅回溯']]
-    :isF?[['all','全部'],['fresh','🆕首达'],['miss①','缺①放大'],['miss②','缺②周转'],['miss③','缺③振幅'],['miss④','缺④主升段'],['miss⑤','缺⑤上影']]
+    :isF?[['all','全部'],['fresh','🆕首达'],['probehit','∩探针重合'],['miss①','缺①放大'],['miss②','缺②周转'],['miss③','缺③振幅'],['miss④','缺④主升段'],['miss⑤','缺⑤上影']]
     :[['all','全部']];
   fs.innerHTML=f.map(x=>`<button class="pf ${x[0]===probeFilter?'on':''}" data-f="${x[0]}">${x[1]}</button>`).join('');
   fs.querySelectorAll('.pf').forEach(b=>b.addEventListener('click',()=>{fs.querySelectorAll('.pf').forEach(z=>z.classList.remove('on'));b.classList.add('on');probeFilter=b.dataset.f;renderList();}));

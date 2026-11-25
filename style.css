@@ -37,6 +37,7 @@ table.lst td.mono{font-family:ui-monospace,Menlo,monospace}
 .badge.A{background:rgba(245,34,45,.16);color:#ff6b6b}.badge.B{background:rgba(250,173,20,.15);color:#ffc53d}.badge.C{background:rgba(22,119,255,.14);color:#69b1ff}.badge.other{background:rgba(123,138,165,.16);color:var(--ink2)}
 .chip-new{background:var(--up);color:#fff;font-size:9.5px;padding:1px 4px;border-radius:4px;margin-left:4px;vertical-align:middle}
 .miss-tag{display:inline-block;background:rgba(250,173,20,.14);color:var(--amber);border:1px solid rgba(250,173,20,.35);font-size:10.5px;padding:1px 5px;border-radius:5px;white-space:nowrap}
+.chip-probe{display:inline-block;background:rgba(146,84,222,.16);color:#c9a2f5;border:1px solid rgba(146,84,222,.45);font-size:9.5px;padding:1px 5px;border-radius:4px;vertical-align:middle;white-space:nowrap;cursor:help}
 .detail{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px 20px}
 .detail .panel-head{padding:0 0 11px;margin-bottom:2px}
 .ov-body{max-height:calc(100vh - 260px);min-height:220px;overflow:auto;padding:4px 2px 0}

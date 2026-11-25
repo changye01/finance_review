@@ -142,7 +142,14 @@ function renderHead(x){
     dd.innerHTML=`<div class="dd-row"><b>探针口径</b><span>t_45 启动探针 · 45 日窗 · 严格 T+5；命中仅代表「从静默转放量」形态，证据弱于五条打分，不构成可买判断。${esc(x.state||'')} ${esc(x.band||'')}</span></div>`;
   }else if(isF){
     const NM={'①':'成交额放大 <6×','②':'筹码周转 <3 次','③':'振幅 <1.7×','④':'主升段不在第 1/2 段','⑤':'上影≥下影不成立'};
-    dd.innerHTML=`<div class="dd-row"><b>4 分口径</b><span>五条打分过四条，缺 ${esc(x.miss)}＝${esc(NM[x.miss]||'待核')}。4 分不分层、不进 A/B/C 池、不与 5 分合并计数；首达 4 分≠首达 5 分，不按 5 分首达的收益结论外推。</span></div>`
+    let ph=`<div class="dd-row"><b>4 分口径</b><span>五条打分过四条，缺 ${esc(x.miss)}＝${esc(NM[x.miss]||'待核')}。4 分不分层、不进 A/B/C 池、不与 5 分合并计数；首达 4 分≠首达 5 分，不按 5 分首达的收益结论外推。</span></div>`;
+    if(x.probeHit){
+      const sg=(x.probeSignals||[]).map(q=>`${q.date||'—'} ${q.state||''}${q.band?' '+q.band:''}`).join('；');
+      ph+=`<div class="dd-row"><b>∩探针重合</b><span>该票同时在 t_45 探针 T 表（${(x.probeSignals||[]).length} 条信号：${esc(sg)}）。⚠️ 两者共用同一根启动 K 线，是同源标注，不是两个独立证据的互相确认；探针状态与 4 分打分各按自身口径判，不合并计数。</span></div>`;
+    }else{
+      ph+=`<div class="dd-row"><b>探针</b><span>未进 t_45 探针 T 表。原因按各自口径：可能是启动价 ≥40 被 PIT 剔除，或 45 日窗内无「放大 ≥3× 且涨幅 ≥3%」的同日信号——不等于资金质量差或数据缺失。</span></div>`;
+    }
+    dd.innerHTML=ph
       +`<div class="dd-nums"><span>窗口涨幅 <b>${fmt(x.win_gain,1)}%</b></span><span>周转 <b>${fmt(x.rounds,2)} 次</b></span><span>放大 <b>${fmt(x.mult,1)}×</b></span><span>振幅 <b>${fmt(x.amp_mult,2)}×</b></span><span>上-下影 <b>${fmt(x.up_sh,2)}</b></span></div>`;
   }else{
     const rows=[];

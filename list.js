@@ -12,6 +12,7 @@ export function orderedList(M, ctx){
   }else if(view==='four'){
     a=(M.four||[]).slice();
     if(probeFilter==='fresh')a=a.filter(x=>x.fresh);
+    else if(probeFilter==='probehit')a=a.filter(x=>x.probeHit);
     else if(probeFilter&&probeFilter.indexOf('miss')===0)a=a.filter(x=>x.miss===probeFilter.slice(4));
   }else{
     a=(M.stocks||[]).slice();
