@@ -105,16 +105,22 @@ export class Chart{
     });
     /* rps 的 Oe()：双向同步 + 边界钳制 + 共享 guard（防回环）。
        只有钳制后 range 真的变了才回写，避免事件风暴。 */
-    const link=(a,b)=>a.timeScale().subscribeVisibleLogicalRangeChange(r=>{
-      if(this._syncing||!r)return;
-      this._syncing=true;
-      try{
-        const c=this._clamp(r);
-        if(c.from!==r.from||c.to!==r.to)a.timeScale().setVisibleLogicalRange(c);
-        b.timeScale().setVisibleLogicalRange(c);
-        this._queueLabel(c);
-      }finally{this._syncing=false;}
-    });
+    // 2026-11-25 修：原用实例级 this._syncing 做防回环，两条 link 共用一个标志，
+    // 拖动主图时副图的回调可能正好撞上 true 被跳过 → 量柱不跟随。
+    // 改成每条 link 各自一个局部 busy 标志，互不干扰。
+    const link=(a,b)=>{
+      let busy=false;
+      a.timeScale().subscribeVisibleLogicalRangeChange(r=>{
+        if(busy||!r)return;
+        busy=true;
+        try{
+          const c=this._clamp(r);
+          if(c.from!==r.from||c.to!==r.to)a.timeScale().setVisibleLogicalRange(c);
+          b.timeScale().setVisibleLogicalRange(c);
+          this._queueLabel(c);
+        }finally{busy=false;}
+      });
+    };
     link(this.chart,this.chartSub);
     link(this.chartSub,this.chart);
     /* 宽度自适应（观察 box，不观察 chart 内部，避免回环） */
