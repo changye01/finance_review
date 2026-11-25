@@ -100,7 +100,10 @@ export class Chart{
     this.chart=createChart(main,{...base,width:w,height:s.main});
     this.chartSub=createChart(sub,{...base,width:w,height:s.sub,
       rightPriceScale:{...base.rightPriceScale,scaleMargins:{top:0.10,bottom:0.06}},
-      handleScale:{...base.handleScale,axisPressedMouseMove:{time:false,price:false}},
+      // 2026-11-25 修：副图原本也开着 mouseWheel/pinch 缩放，会和主图各自缩放导致错位。
+      // 关掉副图的一切独立缩放，只保留拖动（拖动由 link 双向同步），量柱才能始终跟住 K 线。
+      handleScale:{...base.handleScale,mouseWheel:false,pinch:false,
+                   axisPressedMouseMove:{time:false,price:false}},
       crosshair:{...base.crosshair,horzLine:{visible:false}}
     });
     /* rps 的 Oe()：双向同步 + 边界钳制 + 共享 guard（防回环）。
