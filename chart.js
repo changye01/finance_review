@@ -209,8 +209,12 @@ export class Chart{
     }
     if(!this.cs){
       this.cs=this.chart.addSeries(CandlestickSeries,{
-        upColor:UP,downColor:DOWN,borderUpColor:UP,borderDownColor:DOWN,
-        wickUpColor:UP,wickDownColor:DOWN,priceLineVisible:false,lastValueVisible:true
+        // 2026-11-25 用户「红柱改为空心」：阳线填充透明、只留红色边框，
+        // 这样均线穿过阳线时不被遮挡，重叠区也能看清。
+        upColor:'rgba(0,0,0,0)',downColor:DOWN,
+        borderUpColor:UP,borderDownColor:DOWN,
+        wickUpColor:UP,wickDownColor:DOWN,
+        priceLineVisible:false,lastValueVisible:true
       });
       this.hist=this.chartSub.addSeries(HistogramSeries,{
         priceFormat:{type:'price',precision:2,minMove:0.01},priceLineVisible:false,lastValueVisible:false
