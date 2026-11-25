@@ -98,6 +98,15 @@ function goSid(target,push=true){
   refresh();
 }
 function refresh(){
+  // 标题变更前清除上一只票的 K 线/分时/时间轴；加载序号使旧请求不能回写。
+  ++loadSeq;
+  detailObj=null;
+  if(chart){chart.dispose();chart=null;}
+  document.getElementById('chartbox').innerHTML='<div class="loading">当前标的数据载入中…</div>';
+  const cv=document.getElementById('mnCanvas');
+  if(cv){cv.getContext('2d').clearRect(0,0,cv.width,cv.height);cv.style.height='0';}
+  const hint=document.getElementById('mnHint');if(hint)hint.textContent='分时数据载入中…';
+  document.getElementById('dTimeline').innerHTML='';
   const x=findStock();
   if(!x){document.getElementById('dName').textContent='未找到标的 '+sid;return;}
   curX=x;
@@ -136,7 +145,7 @@ function renderHead(x){
   if(!isP&&ind&&ind.close!=null){
     kp.innerHTML=`<div class="kpis">${[['现价',fmt(ind.close,2),''],['距250日高',sgn(ind.dist),cls(-ind.dist)],['压缩度',fmt(ind.comp,2),''],['启动度',fmt(ind.start,2),''],['吸筹比',fmt(ind.absorb,2),''],['综合分',fmt(ind.score,1),'']].map(a=>`<div class="kpi"><div class="lab">${a[0]}</div><div class="val ${a[2]}">${a[1]}</div></div>`).join('')}</div>`;
   }else kp.innerHTML='';
-  // 研判文本：拆页时丢失、这里恢复（action/shape/胜率收益/轮数/段位）
+  // 研判文本：拆页时丢失、这里恢复（action/shape/窗口涨幅/轮数/段位）
   const dd=document.getElementById('dDesc');
   if(isP){
     dd.innerHTML=`<div class="dd-row"><b>探针口径</b><span>t_45 启动探针 · 45 日窗 · 严格 T+5；命中仅代表「从静默转放量」形态，证据弱于五条打分，不构成可买判断。${esc(x.state||'')} ${esc(x.band||'')}</span></div>`;
@@ -156,7 +165,7 @@ function renderHead(x){
     if(x.action)rows.push(`<div class="dd-row"><b>操作建议</b><span>${esc(x.action)}</span></div>`);
     if(x.shape)rows.push(`<div class="dd-row"><b>形态归档</b><span>${esc(x.shape)}</span></div>`);
     const nums=[];
-    if(x.win_gain!=null)nums.push(`<span>胜率收益 <b>${fmt(x.win_gain,1)}%</b></span>`);
+    if(x.win_gain!=null)nums.push(`<span>窗口涨幅 <b>${fmt(x.win_gain,1)}%</b></span>`);
     if(x.rounds!=null)nums.push(`<span>轮数 <b>${fmt(x.rounds,2)}</b></span>`);
     if(x.seg)nums.push(`<span>段位 <b>${esc(x.seg)}</b></span>`);
     if(nums.length)rows.push(`<div class="dd-nums">${nums.join('')}</div>`);
@@ -164,17 +173,19 @@ function renderHead(x){
   }
 }
 async function loadData(){
-  const seq=++loadSeq,box=document.getElementById('chartbox');
+  const seq=++loadSeq,requestSid=sid,box=document.getElementById('chartbox');
   try{
-    // 一票一文件（2026-11-24）：详情页只取自己那只，不再下载整片
-    let all=memShards[sid];
+    // 一票一文件；请求期间 sid 可能变化，所有寻址绑定发起请求时的 sid。
+    let all=memShards[requestSid];
     if(!all){
-      all=await fetchShard('./series/'+sid+'.json',M.generated_at,d=>!!(d&&d[sid]));
-      memShards[sid]=all;
+      all=await fetchShard('./series/'+requestSid+'.json',M.generated_at,d=>!!(d&&d[requestSid]));
+      memShards[requestSid]=all;
     }
-    if(seq!==loadSeq)return; // 快速连按翻页时丢弃过期请求
-    const obj=all[sid];if(!obj)throw new Error('序列缺失 '+sid);
+    if(seq!==loadSeq||requestSid!==sid)return;
+    const obj=all[requestSid];if(!obj)throw new Error('序列缺失 '+requestSid);
     detailObj=obj;
+    // 列表字段可截短；详情字段必须从对应 sid 的分片取全文。
+    renderHead({...curX,...obj});
     if(!chart)chart=new Chart(box,document.getElementById('zoomCtl'),document.getElementById('maLegend'));
     chart.setData(obj,mode);
     drawMinute(obj);

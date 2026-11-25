@@ -4,6 +4,7 @@
    ③ rightOffset=8；④ 双指上下捏合改高度 180–1800px（rps 特色）
    ⑤ range 回调零 DOM 写入：范围文字用 rAF 节流，拖拽帧不碰布局
    库：官方 standalone IIFE，由 detail.html 在模块前加载 → window.LightweightCharts */
+import {fmt} from './util.js';
 const {createChart,CandlestickSeries,LineSeries,HistogramSeries,CrosshairMode,ColorType}=
   (globalThis.LightweightCharts||{});
 

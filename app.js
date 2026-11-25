@@ -100,19 +100,27 @@ function renderHistory(){
   const ov=document.getElementById('overview');
   if(!SNAP||!SNAP.snapshots||!SNAP.snapshots.length){ov.innerHTML='<div class="tl-empty">历史快照数据不可用（snapshots.json 未生成）。</div>';return;}
   const snaps=SNAP.snapshots.slice(-10); // 最多显示最近 10 日
-  const maxA=Math.max(1,...snaps.map(s=>s.probe.total||0));
-  let h='<div class="mig-legend"><span><i style="background:var(--up)"></i>探针「A 已验」占比</span><span>A率＝已验 / 当日探针总数</span></div>';
+  let h='<div class="mig-legend"><span><i style="background:var(--up)"></i>在池已验占比＝当日在池已验 / 当日在池总数（剔除不在分母）</span></div>';
   h+='<div class="mig-h">探针 T+5 验证进度 · 真实历史快照</div>';
   snaps.forEach(s=>{
     const p=s.probe||{},rate=p.a_rate==null?'—':fmt(p.a_rate,1)+'%';
-    const aPct=((p.a||0)/maxA*100).toFixed(1);
+    const aPct=p.total?Math.max(0,Math.min(100,(p.a||0)/p.total*100)).toFixed(1):'0';
     h+=`<div class="mig-row"><span class="mig-date">${esc(s.date.slice(5))}</span>`;
-    h+=`<span class="mig-bar" title="A ${p.a||0} / B ${p.b||0} / 共 ${p.total||0}"><i style="width:${aPct}%"></i></span>`;
-    h+=`<span class="mig-rate">${rate}</span><span class="mig-ab">${p.a||0}/${p.total||0}</span></div>`;
+    h+=`<span class="mig-bar" title="在池 A ${p.a||0} / ${p.total||0}（不含 C）"><i style="width:${aPct}%"></i></span>`;
+    const b=s.backfill||{}, passed=b.upgraded||0, matured=b.matured||0;
+    const batch=b.comparable&&matured?`${passed}/${matured}＝${fmt(b.rate,1)}%`:'口径待核';
+    h+=`<span class="mig-rate">在池已验 ${p.a||0}/${p.total||0}＝${rate}</span>`;
+    h+=`<span class="mig-ab">本批到期通过 ${batch}</span></div>`;
   });
   const last=snaps[snaps.length-1],ly=last.layers||{};
   const layerTxt=ORDER.filter(l=>ly[l]).map(l=>`${l} ${ly[l]}`).join(' · ')||'无';
-  h+=`<div class="mig-note"><b>口径边界</b>　探针 A 率来自每日真实探针产物（${esc(SNAP.asof)} 为止 ${SNAP.snapshots.length} 个快照日），反映「当日窗口内已通过 T+5 验证的占比」，跨日总量随窗口滚动而变化，不可直接相减当作新增。<br><b>分层迁移</b>　A/B/C 分层池仅复盘当日（${esc(last.date)}）有快照：${esc(layerTxt)}。历史各日无分层存档，故不画 A↔B↔C 迁移曲线——不编数据。<br>需要看单只标的的状态轨迹，点进探针详情底部「标的状态时间轴」。</div>`;
+  h+=`<div class="mig-note"><b>口径边界</b>　柱长＝在池已验占比；其分母不含 C，仅描述留池构成。「本批到期通过率」＝上期 B 中本次到期升 A /（升 A＋转 C），未到期不算；两者都不是策略收益胜率。历史快照的旧回填若使用第 5 天单点而非 T+1～T+5 收盘路径，则标「口径待核」。窗口跨日滚动，不直接相减当新增。<br><b>分层迁移</b>　A/B/C 分层池仅复盘当日（${esc(last.date)}）有快照：${esc(layerTxt)}。历史各日无分层存档，故不画 A↔B↔C 迁移曲线——不编数据。单票状态轨迹见探针详情。</div>`;
+  const changes=M.validation_changes||[];
+  if(changes.length){
+    h+='<div class="mig-h" style="margin-top:18px">昨日判断 → 今日结果 → 条件验证（来源：当期复盘原文）</div>';
+    h+='<div class="change-head">昨日判断</div>';
+    changes.forEach(c=>{h+=`<div class="change-row"><b>${esc(c.before)}</b><span>${esc(c.result)}</span><strong>${esc(c.verdict)}</strong></div>`;});
+  }
   ov.innerHTML=h;
 }
 function setOvMode(mode){

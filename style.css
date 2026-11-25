@@ -106,6 +106,11 @@ table.lst td.mono{font-family:ui-monospace,Menlo,monospace}
 .mig-note b{color:var(--amber)}
 .mig-legend{display:flex;gap:12px;font-size:10px;color:var(--ink3);margin-bottom:9px}
 .mig-legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.change-head{font-size:10px;color:var(--ink3);margin:7px 0 3px;font-weight:600}
+.change-row{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;padding:8px 0;border-bottom:1px solid rgba(43,53,72,.4);font-size:10.5px;line-height:1.55}
+.change-row b{grid-column:1/-1;color:var(--ink2);font-weight:600}
+.change-row span,.change-row strong{color:var(--ink3);font-weight:400}
+.change-row strong{color:var(--up)}
 /* 详情页状态时间轴 */
 .tl-box{margin-top:13px;padding:12px 14px;background:var(--surface2);border-radius:8px}
 .tl-h{font-size:11.5px;font-weight:600;color:var(--ink2);margin-bottom:4px}
