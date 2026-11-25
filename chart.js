@@ -231,7 +231,7 @@ export class Chart{
     });
     /* 默认展示最近 250 根（手机 120；2026-11-24 由 120/70 上调，用户「120 根不够」），rAF 延迟设置 */
     this._total=n;
-    const def=IS_NARROW?100:250,from=Math.max(0,n-def),to=this._full().to;  // 手机 100 根（每根约4px），可双指放大
+    const def=IS_NARROW?50:250,from=Math.max(0,n-def),to=this._full().to;  // 手机 50 根（每根约8px，2026-11-25 用户定），可双指放大
     requestAnimationFrame(()=>this._applyRange({from,to}));
   }
   dispose(){
