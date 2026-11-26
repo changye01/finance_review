@@ -18,7 +18,7 @@ export function orderedList(M, ctx){
     a=(M.stocks||[]).slice();
     if(layer!=='__all')a=a.filter(x=>x.layer===layer);
   }
-  if(query)a=a.filter(x=>(x.name||'').toLowerCase().includes(query)||(x.code||'').toLowerCase().includes(query));
+  if(query)a=a.filter(x=>(x.name||'').toLowerCase().includes(query)||(x.code||'').toLowerCase().includes(query)||(x.concept||'').toLowerCase().includes(query));
   if(sortKey)a.sort((x,y)=>{
     let vx=x[sortKey],vy=y[sortKey];if(vx==null)vx='';if(vy==null)vy='';
     if(typeof vx==='string'||typeof vy==='string')return String(vx).localeCompare(String(vy),'zh')*sortDir;

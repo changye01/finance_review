@@ -26,7 +26,9 @@ function cell(x,c){
       sg=(x.probeSignals||[]).map(q=>q.date).filter(Boolean).join('、');
       b+='<span class="chip-probe" title="同时在 t_45 探针 T 表；同一根启动K线，非独立证据">∩探针</span> ';
     }
-    return `${b}${x.name}<br><span style="color:var(--ink3);font-size:10px">${x.code}${sg?' · 探针 '+esc(sg):''}</span>`;
+    const isPr=String(x.sid||'').startsWith('p_');
+    const cp=isPr&&x.concept?`<br><span style="color:var(--ink2);font-size:10px;display:block;max-width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(x.concept)}">${esc(x.concept)}</span>`:'';
+    return `${b}${x.name}<br><span style="color:var(--ink3);font-size:10px">${x.code}${sg?' · 探针 '+esc(sg):''}</span>${cp}`;
   }
   if(c.k==='fresh')return v?'<span class="chip-new">🆕</span>':'';
   if(c.k==='miss')return v?`<span class="miss-tag" title="${esc(MISS_NAME[v]||v)}">缺 ${esc(v)}</span>`:'—';
@@ -46,7 +48,7 @@ function renderList(){
   document.querySelectorAll('#listHead th[data-k]').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.k;if(sortKey===k)sortDir=-sortDir;else{sortKey=k;sortDir=1;}renderList();}));
   const isP=view==='probe',isF=view==='four',pm=M.probe_meta||{};
   document.getElementById('listMeta').textContent=isP
-    ?`${pm.probe_version||'—'} · ${pm.window||''} · ${pm.total||0}/${pm.total_all||0} 只${query?' · 搜到 '+rows.length:''}`
+    ?`${pm.probe_version||'—'} · ${pm.window||''} · ${pm.total||0}/${pm.total_all||0} 只 · 概念 ${((M.probe_concept_meta||{}).covered)||0}/${((M.probe_concept_meta||{}).probe_codes)||0}${query?' · 搜到 '+rows.length:''}`
     :isF
     ?`${rows.length} 只 4 分 · 首达 ${(M.four||[]).filter(x=>x.fresh).length} 只 · 复盘日 ${M.date}${query?' · 已筛选':''}`
     :`${rows.length} 只 · 复盘日 ${M.date}${query?' · 已筛选':''}`;
